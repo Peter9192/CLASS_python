@@ -8,11 +8,16 @@ python test_model.py update-reference
 import sys
 
 import pandas as pd
-from model import model, model_input
+
+from classmodel.model import Model
+from classmodel.config import ModelInput
+
+
+REFERENCE_DATA = "tests/test_output.csv"
 
 
 def default_config():
-    config = model_input()
+    config = ModelInput()
     config.dt = 60.0  # time step [s]
     config.runtime = 12 * 3600  # total run time [s]
 
@@ -116,19 +121,19 @@ def update_reference_data():
     Should be run only once when the expected output changes.
     """
     config = default_config()
-    r1 = model(config)
+    r1 = Model(config)
     r1.run()
     output = r1.out.to_pandas()
-    output.to_csv("test_output.csv")
+    output.to_csv(REFERENCE_DATA)
 
 
 def test_model():
     """Verify that model with default config reproduces previous result."""
     config = default_config()
-    r1 = model(config)
+    r1 = Model(config)
     r1.run()
     output = r1.out.to_pandas()
-    expected_output = pd.read_csv("test_output.csv", index_col=0)
+    expected_output = pd.read_csv(REFERENCE_DATA, index_col=0)
 
     pd.testing.assert_frame_equal(output, expected_output)
 
