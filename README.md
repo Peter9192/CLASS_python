@@ -1,5 +1,13 @@
 CLASS - Python
 -------
 
-NOTE: the `Makefile` for compiling `ribtol.cpp` (fast Bulk Richardson - Obukhov length iterative solver) is not required to run CLASS. By default a (somewhat slower) Python solver is used, and the fast c++ version is only interesting for computationally expensive experiments.
+Just playing around. See the [original version](https://github.com/classmodel/modelpy).
 
+
+After cloning the repo:
+
+```sh
+pip install -e .[dev]
+pytest
+python runmodel.py
+```

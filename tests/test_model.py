@@ -6,8 +6,9 @@ python test_model.py update-reference
 """
 
 import sys
+
 import pandas as pd
-from model import model_input, model
+from model import model, model_input
 
 
 def default_config():

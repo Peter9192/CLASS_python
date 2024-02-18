@@ -1,32 +1,31 @@
-#
-# CLASS
-# Copyright (c) 2010-2015 Meteorology and Air Quality section, Wageningen University and Research centre
-# Copyright (c) 2011-2015 Jordi Vila-Guerau de Arellano
-# Copyright (c) 2011-2015 Chiel van Heerwaarden
-# Copyright (c) 2011-2015 Bart van Stratum
-# Copyright (c) 2011-2015 Kees van den Dries
-#
-# This file is part of CLASS
-#
-# CLASS is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# CLASS is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with CLASS.  If not, see <http://www.gnu.org/licenses/>.
-#
+"""CLASS.
+
+Copyright (c) 2010-2015 Meteorology and Air Quality section, Wageningen University and Research centre
+Copyright (c) 2011-2015 Jordi Vila-Guerau de Arellano
+Copyright (c) 2011-2015 Chiel van Heerwaarden
+Copyright (c) 2011-2015 Bart van Stratum
+Copyright (c) 2011-2015 Kees van den Dries
+
+This file is part of CLASS
+
+CLASS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+CLASS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with CLASS.  If not, see <http://www.gnu.org/licenses/>.
+"""
 
 import copy as cp
-import numpy as np
 import sys
 
-# import ribtol
+import numpy as np
 import pandas as pd
 
 
@@ -38,7 +37,7 @@ def qsat(T, p):
     return 0.622 * esat(T) / p
 
 
-class model:
+class Model:
     def __init__(self, model_input):
         # initialize the different components of the model
         self.input = cp.deepcopy(model_input)
@@ -340,7 +339,7 @@ class model:
         assert self.c_beta >= 0 or self.c_beta <= 1
 
         # initialize output
-        self.out = model_output(self.tsteps)
+        self.out = ModelOutput(self.tsteps)
 
         self.statistics()
 
@@ -431,7 +430,7 @@ class model:
 
         if it == itmax:
             print("LCL calculation not converged!!")
-            print("RHlcl = %f, zlcl=%f" % (RHlcl, self.lcl))
+            print(f"RHlcl = {RHlcl:f}, zlcl={self.lcl:f}")
 
     def run_cumulus(self):
         # Calculate mixed-layer top relative humidity variance (Neggers et. al 2006/7)
@@ -1319,7 +1318,7 @@ class model:
 
 
 # class for storing mixed-layer model output data
-class model_output:
+class ModelOutput:
     def __init__(self, tsteps):
         self.t = np.zeros(tsteps)  # time [s]
 
@@ -1429,7 +1428,7 @@ class model_output:
 
 
 # class for storing mixed-layer model input data
-class model_input:
+class ModelInput:
     def __init__(self):
         # general model variables
         self.runtime = None  # duration of model run [s]

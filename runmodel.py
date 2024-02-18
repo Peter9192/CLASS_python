@@ -4,12 +4,12 @@
 #
 
 import matplotlib.pyplot as plt
-from model import *
+from classmodel.model import Model, ModelInput
 
 """
 Create empty model_input and set up case
 """
-run1input = model_input()
+run1input = ModelInput()
 
 run1input.dt = 60.0  # time step [s]
 run1input.runtime = 12 * 3600  # total run time [s]
@@ -109,7 +109,7 @@ run1input.dz_h = 150.0  # Transition layer thickness [m]
 """
 Init and run the model
 """
-r1 = model(run1input)
+r1 = Model(run1input)
 r1.run()
 
 """
