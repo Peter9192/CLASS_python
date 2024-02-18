@@ -24,9 +24,10 @@ along with CLASS.  If not, see <http://www.gnu.org/licenses/>.
 
 import copy as cp
 import sys
-from classmodel.output import ModelOutput
 
 import numpy as np
+
+from classmodel.output import ModelOutput
 
 
 def esat(T):
@@ -111,9 +112,7 @@ class Model:
         self.mair = 28.9  # molecular weight air [g mol -1]
         self.nuco2q = 1.6  # ratio molecular viscosity water to carbon dioxide
 
-        self.Cw = (
-            0.0016  # constant water stress correction (eq. 13 Jacobs et al. 2007) [-]
-        )
+        self.Cw = 0.0016  # constant water stress correction (eq. 13 Jacobs et al. 2007) [-]
         self.wmax = 0.55  # upper reference value soil water [-]
         self.wmin = 0.005  # lower reference value soil water [-]
         self.R10 = 0.23  # respiration at 10 C [mg CO2 m-2 s-1]
@@ -142,9 +141,7 @@ class Model:
         # Temperature
         self.theta = self.input.theta  # initial mixed-layer potential temperature [K]
         self.dtheta = self.input.dtheta  # initial temperature jump at h [K]
-        self.gammatheta = (
-            self.input.gammatheta
-        )  # free atmosphere potential temperature lapse rate [K m-1]
+        self.gammatheta = self.input.gammatheta  # free atmosphere potential temperature lapse rate [K m-1]
         self.advtheta = self.input.advtheta  # advection of heat [K s-1]
         self.beta = self.input.beta  # entrainment ratio for virtual heat [-]
         self.wtheta = self.input.wtheta  # surface kinematic heat flux [K m s-1]
@@ -183,9 +180,7 @@ class Model:
         # Moisture
         self.q = self.input.q  # initial mixed-layer specific humidity [kg kg-1]
         self.dq = self.input.dq  # initial specific humidity jump at h [kg kg-1]
-        self.gammaq = (
-            self.input.gammaq
-        )  # free atmosphere specific humidity lapse rate [kg kg-1 m-1]
+        self.gammaq = self.input.gammaq  # free atmosphere specific humidity lapse rate [kg kg-1 m-1]
         self.advq = self.input.advq  # advection of moisture [kg kg-1 s-1]
         self.wq = self.input.wq  # surface kinematic moisture flux [kg kg-1 m s-1]
         self.wqe = None  # entrainment moisture flux [kg kg-1 m s-1]
@@ -198,9 +193,7 @@ class Model:
         self.dqsatdT = None  # slope saturated specific humidity curve [g kg-1 K-1]
 
         # CO2
-        fac = self.mair / (
-            self.rho * self.mco2
-        )  # Conversion factor mgC m-2 s-1 to ppm m s-1
+        fac = self.mair / (self.rho * self.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
         self.CO2 = self.input.CO2  # initial mixed-layer CO2 [ppm]
         self.dCO2 = self.input.dCO2  # initial CO2 jump at h [ppm]
         self.gammaCO2 = self.input.gammaCO2  # free atmosphere CO2 lapse rate [ppm m-1]
@@ -272,25 +265,19 @@ class Model:
         self.p = self.input.p  # Clapp and Hornberger retention curve parameter p [-]
         self.CGsat = self.input.CGsat  # saturated soil conductivity for heat
 
-        self.wsat = (
-            self.input.wsat
-        )  # saturated volumetric water content ECMWF config [-]
+        self.wsat = self.input.wsat  # saturated volumetric water content ECMWF config [-]
         self.wfc = self.input.wfc  # volumetric water content field capacity [-]
         self.wwilt = self.input.wwilt  # volumetric water content wilting point [-]
 
         self.C1sat = self.input.C1sat
         self.C2ref = self.input.C2ref
 
-        self.c_beta = (
-            self.input.c_beta
-        )  # Curvature plant water-stress factor (0..1) [-]
+        self.c_beta = self.input.c_beta  # Curvature plant water-stress factor (0..1) [-]
 
         self.LAI = self.input.LAI  # leaf area index [-]
         self.gD = self.input.gD  # correction factor transpiration for VPD [-]
         self.rsmin = self.input.rsmin  # minimum resistance transpiration [s m-1]
-        self.rssoilmin = (
-            self.input.rssoilmin
-        )  # minimum resistance soil evaporation [s m-1]
+        self.rssoilmin = self.input.rssoilmin  # minimum resistance soil evaporation [s m-1]
         self.alpha = self.input.alpha  # surface albedo [-]
 
         self.rs = 1.0e6  # resistance transpiration [s m-1]
@@ -399,9 +386,9 @@ class Model:
         # Calculate virtual temperatures
         self.thetav = self.theta + 0.61 * self.theta * self.q
         self.wthetav = self.wtheta + 0.61 * self.theta * self.wq
-        self.dthetav = (self.theta + self.dtheta) * (
-            1.0 + 0.61 * (self.q + self.dq)
-        ) - self.theta * (1.0 + 0.61 * self.q)
+        self.dthetav = (self.theta + self.dtheta) * (1.0 + 0.61 * (self.q + self.dq)) - self.theta * (
+            1.0 + 0.61 * self.q
+        )
 
         # Mixed-layer top properties
         self.P_h = self.Ps - self.rho * self.g * self.h
@@ -435,15 +422,8 @@ class Model:
     def run_cumulus(self):
         # Calculate mixed-layer top relative humidity variance (Neggers et. al 2006/7)
         if self.wthetav > 0:
-            self.q2_h = (
-                -(self.wqe + self.wqM) * self.dq * self.h / (self.dz_h * self.wstar)
-            )
-            self.CO22_h = (
-                -(self.wCO2e + self.wCO2M)
-                * self.dCO2
-                * self.h
-                / (self.dz_h * self.wstar)
-            )
+            self.q2_h = -(self.wqe + self.wqM) * self.dq * self.h / (self.dz_h * self.wstar)
+            self.CO22_h = -(self.wCO2e + self.wCO2M) * self.dCO2 * self.h / (self.dz_h * self.wstar)
         else:
             self.q2_h = 0.0
             self.CO22_h = 0.0
@@ -451,13 +431,7 @@ class Model:
         # calculate cloud core fraction (ac), mass flux (M) and moisture flux (wqM)
         self.ac = max(
             0.0,
-            0.5
-            + (
-                0.36
-                * np.arctan(
-                    1.55 * ((self.q - qsat(self.T_h, self.P_h)) / self.q2_h**0.5)
-                )
-            ),
+            0.5 + (0.36 * np.arctan(1.55 * ((self.q - qsat(self.T_h, self.P_h)) / self.q2_h**0.5))),
         )
         self.M = self.ac * self.wstar
         self.wqM = self.M * self.q2_h**0.5
@@ -471,12 +445,8 @@ class Model:
     def run_mixed_layer(self):
         if not self.sw_sl:
             # decompose ustar along the wind components
-            self.uw = -np.sign(self.u) * (
-                self.ustar**4.0 / (self.v**2.0 / self.u**2.0 + 1.0)
-            ) ** (0.5)
-            self.vw = -np.sign(self.v) * (
-                self.ustar**4.0 / (self.u**2.0 / self.v**2.0 + 1.0)
-            ) ** (0.5)
+            self.uw = -np.sign(self.u) * (self.ustar**4.0 / (self.v**2.0 / self.u**2.0 + 1.0)) ** (0.5)
+            self.vw = -np.sign(self.v) * (self.ustar**4.0 / (self.u**2.0 / self.v**2.0 + 1.0)) ** (0.5)
 
         # calculate large-scale vertical velocity (subsidence)
         self.ws = -self.divU * self.h
@@ -505,9 +475,7 @@ class Model:
 
         # compute mixed-layer tendencies
         if self.sw_shearwe:
-            self.we = (
-                -self.wthetave + 5.0 * self.ustar**3.0 * self.thetav / (self.g * self.h)
-            ) / self.dthetav
+            self.we = (-self.wthetave + 5.0 * self.ustar**3.0 * self.thetav / (self.g * self.h)) / self.dthetav
         else:
             self.we = -self.wthetave / self.dthetav
 
@@ -526,22 +494,14 @@ class Model:
         self.qtend = (self.wq - self.wqe - self.wqM) / self.h + self.advq
         self.CO2tend = (self.wCO2 - self.wCO2e - self.wCO2M) / self.h + self.advCO2
 
-        self.dthetatend = (
-            self.gammatheta * (self.we + self.wf - self.M) - self.thetatend + w_th_ft
-        )
+        self.dthetatend = self.gammatheta * (self.we + self.wf - self.M) - self.thetatend + w_th_ft
         self.dqtend = self.gammaq * (self.we + self.wf - self.M) - self.qtend + w_q_ft
-        self.dCO2tend = (
-            self.gammaCO2 * (self.we + self.wf - self.M) - self.CO2tend + w_CO2_ft
-        )
+        self.dCO2tend = self.gammaCO2 * (self.we + self.wf - self.M) - self.CO2tend + w_CO2_ft
 
         # assume u + du = ug, so ug - u = du
         if self.sw_wind:
-            self.utend = (
-                -self.fc * self.dv + (self.uw + self.we * self.du) / self.h + self.advu
-            )
-            self.vtend = (
-                self.fc * self.du + (self.vw + self.we * self.dv) / self.h + self.advv
-            )
+            self.utend = -self.fc * self.dv + (self.uw + self.we * self.du) / self.h + self.advu
+            self.vtend = self.fc * self.du + (self.vw + self.we * self.dv) / self.h + self.advv
 
             self.dutend = self.gammau * (self.we + self.wf - self.M) - self.utend
             self.dvtend = self.gammav * (self.we + self.wf - self.M) - self.vtend
@@ -593,17 +553,12 @@ class Model:
 
     def run_radiation(self):
         sda = 0.409 * np.cos(2.0 * np.pi * (self.doy - 173.0) / 365.0)
-        sinlea = np.sin(2.0 * np.pi * self.lat / 360.0) * np.sin(sda) - np.cos(
-            2.0 * np.pi * self.lat / 360.0
-        ) * np.cos(sda) * np.cos(
-            2.0 * np.pi * (self.t * self.dt + self.tstart * 3600.0) / 86400.0
-            + 2.0 * np.pi * self.lon / 360.0
-        )
+        sinlea = np.sin(2.0 * np.pi * self.lat / 360.0) * np.sin(sda) - np.cos(2.0 * np.pi * self.lat / 360.0) * np.cos(
+            sda
+        ) * np.cos(2.0 * np.pi * (self.t * self.dt + self.tstart * 3600.0) / 86400.0 + 2.0 * np.pi * self.lon / 360.0)
         sinlea = max(sinlea, 0.0001)
 
-        Ta = self.theta * ((self.Ps - 0.1 * self.h * self.rho * self.g) / self.Ps) ** (
-            self.Rd / self.cp
-        )
+        Ta = self.theta * ((self.Ps - 0.1 * self.h * self.rho * self.g) / self.Ps) ** (self.Rd / self.cp)
 
         Tr = (0.6 + 0.2 * sinlea) * (1.0 - 0.4 * self.cc)
 
@@ -624,35 +579,17 @@ class Model:
         self.thetavsurf = self.thetasurf * (1.0 + 0.61 * self.qsurf)
 
         zsl = 0.1 * self.h
-        self.Rib = (
-            self.g / self.thetav * zsl * (self.thetav - self.thetavsurf) / ueff**2.0
-        )
+        self.Rib = self.g / self.thetav * zsl * (self.thetav - self.thetavsurf) / ueff**2.0
         self.Rib = min(self.Rib, 0.2)
 
         self.L = self.ribtol(self.Rib, zsl, self.z0m, self.z0h)  # Slow python iteration
         # self.L    = ribtol.ribtol(self.Rib, zsl, self.z0m, self.z0h) # Fast C++ iteration
 
-        self.Cm = (
-            self.k**2.0
-            / (
-                np.log(zsl / self.z0m)
-                - self.psim(zsl / self.L)
-                + self.psim(self.z0m / self.L)
-            )
-            ** 2.0
-        )
+        self.Cm = self.k**2.0 / (np.log(zsl / self.z0m) - self.psim(zsl / self.L) + self.psim(self.z0m / self.L)) ** 2.0
         self.Cs = (
             self.k**2.0
-            / (
-                np.log(zsl / self.z0m)
-                - self.psim(zsl / self.L)
-                + self.psim(self.z0m / self.L)
-            )
-            / (
-                np.log(zsl / self.z0h)
-                - self.psih(zsl / self.L)
-                + self.psih(self.z0h / self.L)
-            )
+            / (np.log(zsl / self.z0m) - self.psim(zsl / self.L) + self.psim(self.z0m / self.L))
+            / (np.log(zsl / self.z0h) - self.psih(zsl / self.L) + self.psih(self.z0h / self.L))
         )
 
         self.ustar = np.sqrt(self.Cm) * ueff
@@ -661,38 +598,24 @@ class Model:
 
         # diagnostic meteorological variables
         self.T2m = self.thetasurf - self.wtheta / self.ustar / self.k * (
-            np.log(2.0 / self.z0h)
-            - self.psih(2.0 / self.L)
-            + self.psih(self.z0h / self.L)
+            np.log(2.0 / self.z0h) - self.psih(2.0 / self.L) + self.psih(self.z0h / self.L)
         )
         self.q2m = self.qsurf - self.wq / self.ustar / self.k * (
-            np.log(2.0 / self.z0h)
-            - self.psih(2.0 / self.L)
-            + self.psih(self.z0h / self.L)
+            np.log(2.0 / self.z0h) - self.psih(2.0 / self.L) + self.psih(self.z0h / self.L)
         )
         self.u2m = (
             -self.uw
             / self.ustar
             / self.k
-            * (
-                np.log(2.0 / self.z0m)
-                - self.psim(2.0 / self.L)
-                + self.psim(self.z0m / self.L)
-            )
+            * (np.log(2.0 / self.z0m) - self.psim(2.0 / self.L) + self.psim(self.z0m / self.L))
         )
         self.v2m = (
             -self.vw
             / self.ustar
             / self.k
-            * (
-                np.log(2.0 / self.z0m)
-                - self.psim(2.0 / self.L)
-                + self.psim(self.z0m / self.L)
-            )
+            * (np.log(2.0 / self.z0m) - self.psim(2.0 / self.L) + self.psim(self.z0m / self.L))
         )
-        self.esat2m = 0.611e3 * np.exp(
-            17.2694 * (self.T2m - 273.16) / (self.T2m - 35.86)
-        )
+        self.esat2m = 0.611e3 * np.exp(17.2694 * (self.T2m - 273.16) / (self.T2m - 35.86))
         self.e2m = self.q2m * self.Ps / 0.622
 
     def ribtol(self, Rib, zsl, z0m, z0h):
@@ -718,32 +641,14 @@ class Model:
                 (
                     -zsl
                     / Lstart
-                    * (
-                        np.log(zsl / z0h)
-                        - self.psih(zsl / Lstart)
-                        + self.psih(z0h / Lstart)
-                    )
-                    / (
-                        np.log(zsl / z0m)
-                        - self.psim(zsl / Lstart)
-                        + self.psim(z0m / Lstart)
-                    )
-                    ** 2.0
+                    * (np.log(zsl / z0h) - self.psih(zsl / Lstart) + self.psih(z0h / Lstart))
+                    / (np.log(zsl / z0m) - self.psim(zsl / Lstart) + self.psim(z0m / Lstart)) ** 2.0
                 )
                 - (
                     -zsl
                     / Lend
-                    * (
-                        np.log(zsl / z0h)
-                        - self.psih(zsl / Lend)
-                        + self.psih(z0h / Lend)
-                    )
-                    / (
-                        np.log(zsl / z0m)
-                        - self.psim(zsl / Lend)
-                        + self.psim(z0m / Lend)
-                    )
-                    ** 2.0
+                    * (np.log(zsl / z0h) - self.psih(zsl / Lend) + self.psih(z0h / Lend))
+                    / (np.log(zsl / z0m) - self.psim(zsl / Lend) + self.psim(z0m / Lend)) ** 2.0
                 )
             ) / (Lstart - Lend)
             L = L - fx / fxdif
@@ -756,19 +661,11 @@ class Model:
     def psim(self, zeta):
         if zeta <= 0:
             x = (1.0 - 16.0 * zeta) ** (0.25)
-            psim = (
-                3.14159265 / 2.0
-                - 2.0 * np.arctan(x)
-                + np.log((1.0 + x) ** 2.0 * (1.0 + x**2.0) / 8.0)
-            )
+            psim = 3.14159265 / 2.0 - 2.0 * np.arctan(x) + np.log((1.0 + x) ** 2.0 * (1.0 + x**2.0) / 8.0)
             # x     = (1. + 3.6 * abs(zeta) ** (2./3.)) ** (-0.5)
             # psim = 3. * np.log( (1. + 1. / x) / 2.)
         else:
-            psim = (
-                -2.0 / 3.0 * (zeta - 5.0 / 0.35) * np.exp(-0.35 * zeta)
-                - zeta
-                - (10.0 / 3.0) / 0.35
-            )
+            psim = -2.0 / 3.0 * (zeta - 5.0 / 0.35) * np.exp(-0.35 * zeta) - zeta - (10.0 / 3.0) / 0.35
         return psim
 
     def psih(self, zeta):
@@ -789,9 +686,7 @@ class Model:
     def jarvis_stewart(self):
         # calculate surface resistances using Jarvis-Stewart model
         if self.sw_rad:
-            f1 = 1.0 / min(
-                1.0, ((0.004 * self.Swin + 0.05) / (0.81 * (0.004 * self.Swin + 1.0)))
-            )
+            f1 = 1.0 / min(1.0, ((0.004 * self.Swin + 0.05) / (0.81 * (0.004 * self.Swin + 1.0))))
         else:
             f1 = 1.0
 
@@ -816,11 +711,7 @@ class Model:
     def E1(self, x):
         E1sum = 0
         for k in range(1, 100):
-            E1sum += (
-                pow((-1.0), (k + 0.0))
-                * pow(x, (k + 0.0))
-                / ((k + 0.0) * self.factorial(k))
-            )
+            E1sum += pow((-1.0), (k + 0.0)) * pow(x, (k + 0.0)) / ((k + 0.0) * self.factorial(k))
         return -0.57721566490153286060 - np.log(x) - E1sum
 
     def ags(self):
@@ -833,11 +724,7 @@ class Model:
             sys.exit('option "%s" for "c3c4" invalid' % self.c3c4)
 
         # calculate CO2 compensation concentration
-        CO2comp = (
-            self.CO2comp298[c]
-            * self.rho
-            * pow(self.Q10CO2[c], (0.1 * (self.thetasurf - 298.0)))
-        )
+        CO2comp = self.CO2comp298[c] * self.rho * pow(self.Q10CO2[c], (0.1 * (self.thetasurf - 298.0)))
 
         # calculate mesophyll conductance
         gm = (
@@ -852,17 +739,13 @@ class Model:
 
         # calculate CO2 concentration inside the leaf (ci)
         fmin0 = self.gmin[c] / self.nuco2q - 1.0 / 9.0 * gm
-        fmin = -fmin0 + pow(
-            (pow(fmin0, 2.0) + 4 * self.gmin[c] / self.nuco2q * gm), 0.5
-        ) / (2.0 * gm)
+        fmin = -fmin0 + pow((pow(fmin0, 2.0) + 4 * self.gmin[c] / self.nuco2q * gm), 0.5) / (2.0 * gm)
 
         Ds = (esat(self.Ts) - self.e) / 1000.0  # kPa
         D0 = (self.f0[c] - fmin) / self.ad[c]
 
         cfrac = self.f0[c] * (1.0 - (Ds / D0)) + fmin * (Ds / D0)
-        co2abs = (
-            self.CO2 * (self.mco2 / self.mair) * self.rho
-        )  # conversion mumol mol-1 (ppm) to mgCO2 m3
+        co2abs = self.CO2 * (self.mco2 / self.mair) * self.rho  # conversion mumol mol-1 (ppm) to mgCO2 m3
         ci = cfrac * (co2abs - CO2comp) + CO2comp
 
         # calculate maximal gross primary production in high light conditions (Ag)
@@ -905,20 +788,14 @@ class Model:
         # 1.- calculate upscaling from leaf to canopy: net flow CO2 into the plant (An)
         y = alphac * self.Kx[c] * PAR / (Am + Rdark)
         An = (Am + Rdark) * (
-            1.0
-            - 1.0
-            / (self.Kx[c] * self.LAI)
-            * (self.E1(y * np.exp(-self.Kx[c] * self.LAI)) - self.E1(y))
+            1.0 - 1.0 / (self.Kx[c] * self.LAI) * (self.E1(y * np.exp(-self.Kx[c] * self.LAI)) - self.E1(y))
         )
 
         # 2.- calculate upscaling from leaf to canopy: CO2 conductance at canopy level
         a1 = 1.0 / (1.0 - self.f0[c])
         Dstar = D0 / (a1 * (self.f0[c] - fmin))
 
-        gcco2 = self.LAI * (
-            self.gmin[c] / self.nuco2q
-            + a1 * fstr * An / ((co2abs - CO2comp) * (1.0 + Ds / Dstar))
-        )
+        gcco2 = self.LAI * (self.gmin[c] / self.nuco2q + a1 * fstr * An / ((co2abs - CO2comp) * (1.0 + Ds / Dstar)))
 
         # calculate surface resistance for moisture and carbon dioxide
         self.rs = 1.0 / (1.6 * gcco2)
@@ -929,11 +806,7 @@ class Model:
 
         # CO2 soil surface flux
         fw = self.Cw * self.wmax / (self.wg + self.wmin)
-        Resp = (
-            self.R10
-            * (1.0 - fw)
-            * np.exp(self.E0 / (283.15 * 8.314) * (1.0 - 283.15 / (self.Tsoil)))
-        )
+        Resp = self.R10 * (1.0 - fw) * np.exp(self.E0 / (283.15 * 8.314) * (1.0 - 283.15 / (self.Tsoil)))
 
         # CO2 flux
         self.wCO2A = An * (self.mair / (self.rho * self.mco2))
@@ -953,8 +826,7 @@ class Model:
         self.esat = esat(self.theta)
         self.qsat = qsat(self.theta, self.Ps)
         desatdT = self.esat * (
-            17.2694 / (self.theta - 35.86)
-            - 17.2694 * (self.theta - 273.16) / (self.theta - 35.86) ** 2.0
+            17.2694 / (self.theta - 35.86) - 17.2694 * (self.theta - 273.16) / (self.theta - 35.86) ** 2.0
         )
         self.dqsatdT = 0.622 * desatdT / self.Ps
         self.e = self.q * self.Ps / 0.622
@@ -991,26 +863,12 @@ class Model:
             * self.Lv
             / (self.ra + self.rssoil)
             * (self.dqsatdT * self.theta - self.qsat + self.q)
-            + self.cveg
-            * self.cliq
-            * self.rho
-            * self.Lv
-            / self.ra
-            * (self.dqsatdT * self.theta - self.qsat + self.q)
+            + self.cveg * self.cliq * self.rho * self.Lv / self.ra * (self.dqsatdT * self.theta - self.qsat + self.q)
             + self.Lambda * self.Tsoil
         ) / (
             self.rho * self.cp / self.ra
-            + self.cveg
-            * (1.0 - self.cliq)
-            * self.rho
-            * self.Lv
-            / (self.ra + self.rs)
-            * self.dqsatdT
-            + (1.0 - self.cveg)
-            * self.rho
-            * self.Lv
-            / (self.ra + self.rssoil)
-            * self.dqsatdT
+            + self.cveg * (1.0 - self.cliq) * self.rho * self.Lv / (self.ra + self.rs) * self.dqsatdT
+            + (1.0 - self.cveg) * self.rho * self.Lv / (self.ra + self.rssoil) * self.dqsatdT
             + self.cveg * self.cliq * self.rho * self.Lv / self.ra * self.dqsatdT
             + self.Lambda
         )
@@ -1047,14 +905,12 @@ class Model:
         self.LE = self.LEsoil + self.LEveg + self.LEliq
         self.H = self.rho * self.cp / self.ra * (self.Ts - self.theta)
         self.G = self.Lambda * (self.Ts - self.Tsoil)
-        self.LEpot = (
-            self.dqsatdT * (self.Q - self.G)
-            + self.rho * self.cp / self.ra * (self.qsat - self.q)
-        ) / (self.dqsatdT + self.cp / self.Lv)
-        self.LEref = (
-            self.dqsatdT * (self.Q - self.G)
-            + self.rho * self.cp / self.ra * (self.qsat - self.q)
-        ) / (self.dqsatdT + self.cp / self.Lv * (1.0 + self.rsmin / self.LAI / self.ra))
+        self.LEpot = (self.dqsatdT * (self.Q - self.G) + self.rho * self.cp / self.ra * (self.qsat - self.q)) / (
+            self.dqsatdT + self.cp / self.Lv
+        )
+        self.LEref = (self.dqsatdT * (self.Q - self.G) + self.rho * self.cp / self.ra * (self.qsat - self.q)) / (
+            self.dqsatdT + self.cp / self.Lv * (1.0 + self.rsmin / self.LAI / self.ra)
+        )
 
         CG = self.CGsat * (self.wsat / self.w2) ** (self.b / (2.0 * np.log(10.0)))
 
@@ -1064,12 +920,9 @@ class Model:
         C1 = self.C1sat * (self.wsat / self.wg) ** (self.b / 2.0 + 1.0)
         C2 = self.C2ref * (self.w2 / (self.wsat - self.w2))
         wgeq = self.w2 - self.wsat * self.a * (
-            (self.w2 / self.wsat) ** self.p
-            * (1.0 - (self.w2 / self.wsat) ** (8.0 * self.p))
+            (self.w2 / self.wsat) ** self.p * (1.0 - (self.w2 / self.wsat) ** (8.0 * self.p))
         )
-        self.wgtend = -C1 / (self.rhow * d1) * self.LEsoil / self.Lv - C2 / 86400.0 * (
-            self.wg - wgeq
-        )
+        self.wgtend = -C1 / (self.rhow * d1) * self.LEsoil / self.Lv - C2 / 86400.0 * (self.wg - wgeq)
 
         # calculate kinematic heat fluxes
         self.wtheta = self.H / (self.rho * self.cp)

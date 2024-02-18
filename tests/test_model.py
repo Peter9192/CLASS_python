@@ -8,10 +8,8 @@ python test_model.py update-reference
 import sys
 
 import pandas as pd
-
-from classmodel.model import Model
 from classmodel.config import CLASSConfig
-
+from classmodel.model import Model
 
 REFERENCE_DATA = "tests/test_output.csv"
 

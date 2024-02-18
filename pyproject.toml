@@ -45,3 +45,4 @@ select = [
 ignore = [
   "N806",  # Variable `RHlcl` in function should be lowercase
 ]
+line-length = 120
