@@ -1,12 +1,12 @@
 #
 # Example of how to run the Python code, and access the output
-# This case is identical to the default setup of CLASS (the version with interface) 
+# This case is identical to the default setup of CLASS (the version with interface)
 #
 
-from pylab import *
+import matplotlib.pyplot as plt
 from model import *
 
-""" 
+"""
 Create empty model_input and set up case
 """
 run1input = model_input()
@@ -64,8 +64,8 @@ run1input.lon        = -4.93     # longitude [deg]
 run1input.doy        = 268.      # day of the year [-]
 run1input.tstart     = 6.8       # time of the day [h UTC]
 run1input.cc         = 0.0       # cloud cover fraction [-]
-run1input.Q          = 400.      # net radiation [W m-2] 
-run1input.dFz        = 0.        # cloud top radiative divergence [W m-2] 
+run1input.Q          = 400.      # net radiation [W m-2]
+run1input.dFz        = 0.        # cloud top radiative divergence [W m-2]
 
 run1input.sw_ls      = False     # land surface switch
 run1input.ls_type    = 'js'      # land-surface parameterization ('js' for Jarvis-Stewart or 'ags' for A-Gs)
@@ -83,7 +83,7 @@ run1input.wsat       = 0.472     # saturated volumetric water content ECMWF conf
 run1input.wfc        = 0.323     # volumetric water content field capacity [-]
 run1input.wwilt      = 0.171     # volumetric water content wilting point [-]
 
-run1input.C1sat      = 0.132     
+run1input.C1sat      = 0.132
 run1input.C2ref      = 1.8
 
 run1input.LAI        = 2.        # leaf area index [-]
@@ -113,18 +113,18 @@ r1.run()
 """
 Plot output
 """
-figure()
-subplot(131)
-plot(r1.out.t, r1.out.h)
-xlabel('time [h]')
-ylabel('h [m]')
+plt.figure()
+plt.subplot(311)
+plt.plot(r1.out.t, r1.out.h)
+plt.xlabel('time [h]')
+plt.ylabel('h [m]')
 
-subplot(132)
-plot(r1.out.t, r1.out.theta)
-xlabel('time [h]')
-ylabel('theta [K]')
+plt.subplot(312)
+plt.plot(r1.out.t, r1.out.theta)
+plt.xlabel('time [h]')
+plt.ylabel('theta [K]')
 
-subplot(133)
-plot(r1.out.t, r1.out.q*1000.)
-xlabel('time [h]')
-ylabel('q [g kg-1]')
+plt.subplot(313)
+plt.plot(r1.out.t, r1.out.q*1000.)
+plt.xlabel('time [h]')
+plt.ylabel('q [g kg-1]')
