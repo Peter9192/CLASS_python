@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "CLASS"
+description = "Chemistry Land-surface Atmosphere Soil Slab model"
+version = 2020.03.0
+authors = [
+  {name = "Jordi Vila-Guerau de Arellano" },
+  {name = "Chiel van Heerwaarden" },
+  {name = "Bart van Stratum" },
+  {name = "Kees van den Dries" },
+]
+dependencies = [
+  "matplotlib",
+  "pandas",
+  "numpy",
+]
+
+classifiers = [
+  "License :: OSI Approved :: GNU General Public License (GPLv3)",
+]
+
+[project.optional-dependencies]
+dev = ["ruff", "pytest"]
+
+[project.urls]
+Homepage = "https://classmodel.github.io/"
+Repository = "https://github.com/classmodel/modelpy"
