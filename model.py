@@ -25,7 +25,9 @@
 import copy as cp
 import numpy as np
 import sys
+
 # import ribtol
+import pandas as pd
 
 
 def esat(T):
@@ -1421,8 +1423,8 @@ class model_output:
         self.M = np.zeros(tsteps)  # cloud core mass flux [m s-1]
         self.dz = np.zeros(tsteps)  # transition layer thickness [m]
 
-    def to_pandas(self, filename):
-        df = pd.Dataframe(self.t, self.h, self.theta, self.q)
+    def to_pandas(self):
+        df = pd.DataFrame(self.__dict__)
         return df
 
 
