@@ -23,11 +23,30 @@ along with CLASS.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import copy as cp
+from dataclasses import dataclass
 import sys
 
 import numpy as np
 
 from classmodel.output import ModelOutput
+
+
+@dataclass(frozen=True)
+class _Constants:
+    # initialize constants
+    Lv = 2.5e6  # heat of vaporization [J kg-1]
+    cp = 1005.0  # specific heat of dry air [J kg-1 K-1]
+    rho = 1.2  # density of air [kg m-3]
+    k = 0.4  # Von Karman constant [-]
+    g = 9.81  # gravity acceleration [m s-2]
+    Rd = 287.0  # gas constant for dry air [J kg-1 K-1]
+    Rv = 461.5  # gas constant for moist air [J kg-1 K-1]
+    bolz = 5.67e-8  # Bolzman constant [-]
+    rhow = 1000.0  # density of water [kg m-3]
+    S0 = 1368.0  # solar constant [W m-2]
+
+
+CONSTANTS = _Constants()
 
 
 def esat(T):
@@ -57,17 +76,6 @@ class Model:
 
     def init(self):
         # assign variables from input data
-        # initialize constants
-        self.Lv = 2.5e6  # heat of vaporization [J kg-1]
-        self.cp = 1005.0  # specific heat of dry air [J kg-1 K-1]
-        self.rho = 1.2  # density of air [kg m-3]
-        self.k = 0.4  # Von Karman constant [-]
-        self.g = 9.81  # gravity acceleration [m s-2]
-        self.Rd = 287.0  # gas constant for dry air [J kg-1 K-1]
-        self.Rv = 461.5  # gas constant for moist air [J kg-1 K-1]
-        self.bolz = 5.67e-8  # Bolzman constant [-]
-        self.rhow = 1000.0  # density of water [kg m-3]
-        self.S0 = 1368.0  # solar constant [W m-2]
 
         # A-Gs constants and settings
         # Plant type:       -C3-     -C4-
@@ -105,7 +113,7 @@ class Model:
         self.f0 = [0.89, 0.85]  # maximum value Cfrac [-]
         self.ad = [0.07, 0.15]  # regression coefficient to calculate Cfrac [kPa-1]
         self.alpha0 = [0.017, 0.014]  # initial low light conditions [mg J-1]
-        self.Kx = [0.7, 0.7]  # extinction coefficient PAR [-]
+        self.kx = [0.7, 0.7]  # extinction coefficient PAR [-]
         self.gmin = [0.25e-3, 0.25e-3]  # cuticular (minimum) conductance [mm s-1]
 
         self.mco2 = 44.0  # molecular weight CO2 [g mol -1]
@@ -193,7 +201,7 @@ class Model:
         self.dqsatdT = None  # slope saturated specific humidity curve [g kg-1 K-1]
 
         # CO2
-        fac = self.mair / (self.rho * self.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
+        fac = self.mair / (CONSTANTS.rho * self.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
         self.CO2 = self.input.CO2  # initial mixed-layer CO2 [ppm]
         self.dCO2 = self.input.dCO2  # initial CO2 jump at h [ppm]
         self.gammaCO2 = self.input.gammaCO2  # free atmosphere CO2 lapse rate [ppm m-1]
@@ -391,11 +399,11 @@ class Model:
         )
 
         # Mixed-layer top properties
-        self.P_h = self.Ps - self.rho * self.g * self.h
-        self.T_h = self.theta - self.g / self.cp * self.h
+        self.P_h = self.Ps - CONSTANTS.rho * CONSTANTS.g * self.h
+        self.T_h = self.theta - CONSTANTS.g / CONSTANTS.cp * self.h
 
-        # self.P_h    = self.Ps / np.exp((self.g * self.h)/(self.Rd * self.theta))
-        # self.T_h    = self.theta / (self.Ps / self.P_h)**(self.Rd/self.cp)
+        # self.P_h    = self.Ps / np.exp((CONSTANTS.g * self.h)/(CONSTANTS.Rd * self.theta))
+        # self.T_h    = self.theta / (self.Ps / self.P_h)**(CONSTANTS.Rd/CONSTANTS.cp)
 
         self.RH_h = self.q / qsat(self.T_h, self.P_h)
 
@@ -410,8 +418,8 @@ class Model:
         it = 0
         while ((RHlcl <= 0.9999) or (RHlcl >= 1.0001)) and it < itmax:
             self.lcl += (1.0 - RHlcl) * 1000.0
-            p_lcl = self.Ps - self.rho * self.g * self.lcl
-            T_lcl = self.theta - self.g / self.cp * self.lcl
+            p_lcl = self.Ps - CONSTANTS.rho * CONSTANTS.g * self.lcl
+            T_lcl = self.theta - CONSTANTS.g / CONSTANTS.cp * self.lcl
             RHlcl = self.q / qsat(T_lcl, p_lcl)
             it += 1
 
@@ -462,11 +470,11 @@ class Model:
             w_CO2_ft = 0.0
 
         # calculate mixed-layer growth due to cloud top radiative divergence
-        self.wf = self.dFz / (self.rho * self.cp * self.dtheta)
+        self.wf = self.dFz / (CONSTANTS.rho * CONSTANTS.cp * self.dtheta)
 
         # calculate convective velocity scale w*
         if self.wthetav > 0.0:
-            self.wstar = ((self.g * self.h * self.wthetav) / self.thetav) ** (1.0 / 3.0)
+            self.wstar = ((CONSTANTS.g * self.h * self.wthetav) / self.thetav) ** (1.0 / 3.0)
         else:
             self.wstar = 1e-6
 
@@ -475,7 +483,7 @@ class Model:
 
         # compute mixed-layer tendencies
         if self.sw_shearwe:
-            self.we = (-self.wthetave + 5.0 * self.ustar**3.0 * self.thetav / (self.g * self.h)) / self.dthetav
+            self.we = (-self.wthetave + 5.0 * self.ustar**3.0 * self.thetav / (CONSTANTS.g * self.h)) / self.dthetav
         else:
             self.we = -self.wthetave / self.dthetav
 
@@ -558,14 +566,16 @@ class Model:
         ) * np.cos(2.0 * np.pi * (self.t * self.dt + self.tstart * 3600.0) / 86400.0 + 2.0 * np.pi * self.lon / 360.0)
         sinlea = max(sinlea, 0.0001)
 
-        Ta = self.theta * ((self.Ps - 0.1 * self.h * self.rho * self.g) / self.Ps) ** (self.Rd / self.cp)
+        Ta = self.theta * ((self.Ps - 0.1 * self.h * CONSTANTS.rho * CONSTANTS.g) / self.Ps) ** (
+            CONSTANTS.Rd / CONSTANTS.cp
+        )
 
         Tr = (0.6 + 0.2 * sinlea) * (1.0 - 0.4 * self.cc)
 
-        self.Swin = self.S0 * Tr * sinlea
-        self.Swout = self.alpha * self.S0 * Tr * sinlea
-        self.Lwin = 0.8 * self.bolz * Ta**4.0
-        self.Lwout = self.bolz * self.Ts**4.0
+        self.Swin = CONSTANTS.S0 * Tr * sinlea
+        self.Swout = self.alpha * CONSTANTS.S0 * Tr * sinlea
+        self.Lwin = 0.8 * CONSTANTS.bolz * Ta**4.0
+        self.Lwout = CONSTANTS.bolz * self.Ts**4.0
 
         self.Q = self.Swin - self.Swout + self.Lwin - self.Lwout
 
@@ -579,15 +589,17 @@ class Model:
         self.thetavsurf = self.thetasurf * (1.0 + 0.61 * self.qsurf)
 
         zsl = 0.1 * self.h
-        self.Rib = self.g / self.thetav * zsl * (self.thetav - self.thetavsurf) / ueff**2.0
+        self.Rib = CONSTANTS.g / self.thetav * zsl * (self.thetav - self.thetavsurf) / ueff**2.0
         self.Rib = min(self.Rib, 0.2)
 
         self.L = self.ribtol(self.Rib, zsl, self.z0m, self.z0h)  # Slow python iteration
         # self.L    = ribtol.ribtol(self.Rib, zsl, self.z0m, self.z0h) # Fast C++ iteration
 
-        self.Cm = self.k**2.0 / (np.log(zsl / self.z0m) - self.psim(zsl / self.L) + self.psim(self.z0m / self.L)) ** 2.0
+        self.Cm = (
+            CONSTANTS.k**2.0 / (np.log(zsl / self.z0m) - self.psim(zsl / self.L) + self.psim(self.z0m / self.L)) ** 2.0
+        )
         self.Cs = (
-            self.k**2.0
+            CONSTANTS.k**2.0
             / (np.log(zsl / self.z0m) - self.psim(zsl / self.L) + self.psim(self.z0m / self.L))
             / (np.log(zsl / self.z0h) - self.psih(zsl / self.L) + self.psih(self.z0h / self.L))
         )
@@ -597,22 +609,22 @@ class Model:
         self.vw = -self.Cm * ueff * self.v
 
         # diagnostic meteorological variables
-        self.T2m = self.thetasurf - self.wtheta / self.ustar / self.k * (
+        self.T2m = self.thetasurf - self.wtheta / self.ustar / CONSTANTS.k * (
             np.log(2.0 / self.z0h) - self.psih(2.0 / self.L) + self.psih(self.z0h / self.L)
         )
-        self.q2m = self.qsurf - self.wq / self.ustar / self.k * (
+        self.q2m = self.qsurf - self.wq / self.ustar / CONSTANTS.k * (
             np.log(2.0 / self.z0h) - self.psih(2.0 / self.L) + self.psih(self.z0h / self.L)
         )
         self.u2m = (
             -self.uw
             / self.ustar
-            / self.k
+            / CONSTANTS.k
             * (np.log(2.0 / self.z0m) - self.psim(2.0 / self.L) + self.psim(self.z0m / self.L))
         )
         self.v2m = (
             -self.vw
             / self.ustar
-            / self.k
+            / CONSTANTS.k
             * (np.log(2.0 / self.z0m) - self.psim(2.0 / self.L) + self.psim(self.z0m / self.L))
         )
         self.esat2m = 0.611e3 * np.exp(17.2694 * (self.T2m - 273.16) / (self.T2m - 35.86))
@@ -724,7 +736,7 @@ class Model:
             sys.exit('option "%s" for "c3c4" invalid' % self.c3c4)
 
         # calculate CO2 compensation concentration
-        CO2comp = self.CO2comp298[c] * self.rho * pow(self.Q10CO2[c], (0.1 * (self.thetasurf - 298.0)))
+        CO2comp = self.CO2comp298[c] * CONSTANTS.rho * pow(self.Q10CO2[c], (0.1 * (self.thetasurf - 298.0)))
 
         # calculate mesophyll conductance
         gm = (
@@ -745,7 +757,7 @@ class Model:
         D0 = (self.f0[c] - fmin) / self.ad[c]
 
         cfrac = self.f0[c] * (1.0 - (Ds / D0)) + fmin * (Ds / D0)
-        co2abs = self.CO2 * (self.mco2 / self.mair) * self.rho  # conversion mumol mol-1 (ppm) to mgCO2 m3
+        co2abs = self.CO2 * (self.mco2 / self.mair) * CONSTANTS.rho  # conversion mumol mol-1 (ppm) to mgCO2 m3
         ci = cfrac * (co2abs - CO2comp) + CO2comp
 
         # calculate maximal gross primary production in high light conditions (Ag)
@@ -786,9 +798,9 @@ class Model:
         Ag = (Am + Rdark) * (1 - np.exp(alphac * PAR / (Am + Rdark)))
 
         # 1.- calculate upscaling from leaf to canopy: net flow CO2 into the plant (An)
-        y = alphac * self.Kx[c] * PAR / (Am + Rdark)
+        y = alphac * self.kx[c] * PAR / (Am + Rdark)
         An = (Am + Rdark) * (
-            1.0 - 1.0 / (self.Kx[c] * self.LAI) * (self.E1(y * np.exp(-self.Kx[c] * self.LAI)) - self.E1(y))
+            1.0 - 1.0 / (self.kx[c] * self.LAI) * (self.E1(y * np.exp(-self.kx[c] * self.LAI)) - self.E1(y))
         )
 
         # 2.- calculate upscaling from leaf to canopy: CO2 conductance at canopy level
@@ -809,8 +821,8 @@ class Model:
         Resp = self.R10 * (1.0 - fw) * np.exp(self.E0 / (283.15 * 8.314) * (1.0 - 283.15 / (self.Tsoil)))
 
         # CO2 flux
-        self.wCO2A = An * (self.mair / (self.rho * self.mco2))
-        self.wCO2R = Resp * (self.mair / (self.rho * self.mco2))
+        self.wCO2A = An * (self.mair / (CONSTANTS.rho * self.mco2))
+        self.wCO2R = Resp * (self.mair / (CONSTANTS.rho * self.mco2))
         self.wCO2 = self.wCO2A + self.wCO2R
 
     def run_land_surface(self):
@@ -851,66 +863,71 @@ class Model:
         # calculate skin temperature implictly
         self.Ts = (
             self.Q
-            + self.rho * self.cp / self.ra * self.theta
+            + CONSTANTS.rho * CONSTANTS.cp / self.ra * self.theta
             + self.cveg
             * (1.0 - self.cliq)
-            * self.rho
-            * self.Lv
+            * CONSTANTS.rho
+            * CONSTANTS.Lv
             / (self.ra + self.rs)
             * (self.dqsatdT * self.theta - self.qsat + self.q)
             + (1.0 - self.cveg)
-            * self.rho
-            * self.Lv
+            * CONSTANTS.rho
+            * CONSTANTS.Lv
             / (self.ra + self.rssoil)
             * (self.dqsatdT * self.theta - self.qsat + self.q)
-            + self.cveg * self.cliq * self.rho * self.Lv / self.ra * (self.dqsatdT * self.theta - self.qsat + self.q)
+            + self.cveg
+            * self.cliq
+            * CONSTANTS.rho
+            * CONSTANTS.Lv
+            / self.ra
+            * (self.dqsatdT * self.theta - self.qsat + self.q)
             + self.Lambda * self.Tsoil
         ) / (
-            self.rho * self.cp / self.ra
-            + self.cveg * (1.0 - self.cliq) * self.rho * self.Lv / (self.ra + self.rs) * self.dqsatdT
-            + (1.0 - self.cveg) * self.rho * self.Lv / (self.ra + self.rssoil) * self.dqsatdT
-            + self.cveg * self.cliq * self.rho * self.Lv / self.ra * self.dqsatdT
+            CONSTANTS.rho * CONSTANTS.cp / self.ra
+            + self.cveg * (1.0 - self.cliq) * CONSTANTS.rho * CONSTANTS.Lv / (self.ra + self.rs) * self.dqsatdT
+            + (1.0 - self.cveg) * CONSTANTS.rho * CONSTANTS.Lv / (self.ra + self.rssoil) * self.dqsatdT
+            + self.cveg * self.cliq * CONSTANTS.rho * CONSTANTS.Lv / self.ra * self.dqsatdT
             + self.Lambda
         )
 
-        esatsurf = esat(self.Ts)
+        esatsurf = esat(self.Ts)  # TODO: why is this not used?
         self.qsatsurf = qsat(self.Ts, self.Ps)
 
         self.LEveg = (
             (1.0 - self.cliq)
             * self.cveg
-            * self.rho
-            * self.Lv
+            * CONSTANTS.rho
+            * CONSTANTS.Lv
             / (self.ra + self.rs)
             * (self.dqsatdT * (self.Ts - self.theta) + self.qsat - self.q)
         )
         self.LEliq = (
             self.cliq
             * self.cveg
-            * self.rho
-            * self.Lv
+            * CONSTANTS.rho
+            * CONSTANTS.Lv
             / self.ra
             * (self.dqsatdT * (self.Ts - self.theta) + self.qsat - self.q)
         )
         self.LEsoil = (
             (1.0 - self.cveg)
-            * self.rho
-            * self.Lv
+            * CONSTANTS.rho
+            * CONSTANTS.Lv
             / (self.ra + self.rssoil)
             * (self.dqsatdT * (self.Ts - self.theta) + self.qsat - self.q)
         )
 
-        self.Wltend = -self.LEliq / (self.rhow * self.Lv)
+        self.Wltend = -self.LEliq / (CONSTANTS.rhow * CONSTANTS.Lv)
 
         self.LE = self.LEsoil + self.LEveg + self.LEliq
-        self.H = self.rho * self.cp / self.ra * (self.Ts - self.theta)
+        self.H = CONSTANTS.rho * CONSTANTS.cp / self.ra * (self.Ts - self.theta)
         self.G = self.Lambda * (self.Ts - self.Tsoil)
-        self.LEpot = (self.dqsatdT * (self.Q - self.G) + self.rho * self.cp / self.ra * (self.qsat - self.q)) / (
-            self.dqsatdT + self.cp / self.Lv
-        )
-        self.LEref = (self.dqsatdT * (self.Q - self.G) + self.rho * self.cp / self.ra * (self.qsat - self.q)) / (
-            self.dqsatdT + self.cp / self.Lv * (1.0 + self.rsmin / self.LAI / self.ra)
-        )
+        self.LEpot = (
+            self.dqsatdT * (self.Q - self.G) + CONSTANTS.rho * CONSTANTS.cp / self.ra * (self.qsat - self.q)
+        ) / (self.dqsatdT + CONSTANTS.cp / CONSTANTS.Lv)
+        self.LEref = (
+            self.dqsatdT * (self.Q - self.G) + CONSTANTS.rho * CONSTANTS.cp / self.ra * (self.qsat - self.q)
+        ) / (self.dqsatdT + CONSTANTS.cp / CONSTANTS.Lv * (1.0 + self.rsmin / self.LAI / self.ra))
 
         CG = self.CGsat * (self.wsat / self.w2) ** (self.b / (2.0 * np.log(10.0)))
 
@@ -922,11 +939,11 @@ class Model:
         wgeq = self.w2 - self.wsat * self.a * (
             (self.w2 / self.wsat) ** self.p * (1.0 - (self.w2 / self.wsat) ** (8.0 * self.p))
         )
-        self.wgtend = -C1 / (self.rhow * d1) * self.LEsoil / self.Lv - C2 / 86400.0 * (self.wg - wgeq)
+        self.wgtend = -C1 / (CONSTANTS.rhow * d1) * self.LEsoil / CONSTANTS.Lv - C2 / 86400.0 * (self.wg - wgeq)
 
         # calculate kinematic heat fluxes
-        self.wtheta = self.H / (self.rho * self.cp)
-        self.wq = self.LE / (self.rho * self.Lv)
+        self.wtheta = self.H / (CONSTANTS.rho * CONSTANTS.cp)
+        self.wq = self.LE / (CONSTANTS.rho * CONSTANTS.Lv)
 
     def integrate_land_surface(self):
         # integrate soil equations
@@ -963,7 +980,7 @@ class Model:
         self.out.e[t] = self.e
         self.out.esat[t] = self.esat
 
-        fac = (self.rho * self.mco2) / self.mair
+        fac = (CONSTANTS.rho * self.mco2) / self.mair
         self.out.CO2[t] = self.CO2
         self.out.dCO2[t] = self.dCO2
         self.out.wCO2[t] = self.wCO2 * fac
@@ -1021,17 +1038,6 @@ class Model:
 
     # delete class variables to facilitate analysis in ipython
     def exitmodel(self):
-        del self.Lv
-        del self.cp
-        del self.rho
-        del self.k
-        del self.g
-        del self.Rd
-        del self.Rv
-        del self.bolz
-        del self.S0
-        del self.rhow
-
         del self.t
         del self.dt
         del self.tsteps
