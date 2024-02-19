@@ -68,7 +68,7 @@ class CLASSConfig:
     doy: float = 268.0  # day of the year [-]
     tstart: float = 6.8  # time of the day [h UTC]
     cc: float = 0.0  # cloud cover fraction [-]
-    Q: float = 400.0  # net radiation [W m-2]
+    Q0: float = 400.0  # net radiation [W m-2]
     dFz: float = 0.0  # cloud top radiative divergence [W m-2]
 
     # land surface parameters

@@ -23,30 +23,13 @@ along with CLASS.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import copy as cp
-from dataclasses import dataclass
 import sys
 
 import numpy as np
 
+from classmodel.constants import CONSTANTS
 from classmodel.output import ModelOutput
-
-
-@dataclass(frozen=True)
-class _Constants:
-    # initialize constants
-    Lv = 2.5e6  # heat of vaporization [J kg-1]
-    cp = 1005.0  # specific heat of dry air [J kg-1 K-1]
-    rho = 1.2  # density of air [kg m-3]
-    k = 0.4  # Von Karman constant [-]
-    g = 9.81  # gravity acceleration [m s-2]
-    Rd = 287.0  # gas constant for dry air [J kg-1 K-1]
-    Rv = 461.5  # gas constant for moist air [J kg-1 K-1]
-    bolz = 5.67e-8  # Bolzman constant [-]
-    rhow = 1000.0  # density of water [kg m-3]
-    S0 = 1368.0  # solar constant [W m-2]
-
-
-CONSTANTS = _Constants()
+from classmodel.radiation import Radiation
 
 
 def esat(T):
@@ -59,24 +42,22 @@ def qsat(T, p):
 
 class Model:
     def __init__(self, model_input):
-        # initialize the different components of the model
+        """Ïnitialize the different components of the model."""
         self.input = cp.deepcopy(model_input)
 
     def run(self):
+        """Run model from start to finish."""
         # initialize model variables
         self.init()
 
         # time integrate model
-        for self.t in range(self.tsteps):
+        for t in range(self.tsteps):
+            self.t = t
             # time integrate components
             self.timestep()
 
-        # delete unnecessary variables from memory
-        self.exitmodel()
-
     def init(self):
-        # assign variables from input data
-
+        """Assign variables from input data."""
         # A-Gs constants and settings
         # Plant type:       -C3-     -C4-
         self.CO2comp298 = [68.5, 4.3]  # CO2 compensation concentration [mg m-3]
@@ -132,7 +113,7 @@ class Model:
         self.sw_fixft = self.input.sw_fixft  # Fix the free-troposphere switch
         self.sw_wind = self.input.sw_wind  # prognostic wind switch
         self.sw_sl = self.input.sw_sl  # surface layer switch
-        self.sw_rad = self.input.sw_rad  # radiation switch
+        self.radiation = Radiation(self.input) if self.input.sw_rad else None  # radiation switch
         self.sw_ls = self.input.sw_ls  # land surface switch
         self.ls_type = self.input.ls_type  # land surface paramaterization (js or ags)
         self.sw_cu = self.input.sw_cu  # cumulus parameterization switch
@@ -249,17 +230,7 @@ class Model:
         self.Rib = None  # bulk Richardson number [-]
         self.ra = None  # aerodynamic resistance [s m-1]
 
-        # initialize radiation
-        self.lat = self.input.lat  # latitude [deg]
-        self.lon = self.input.lon  # longitude [deg]
-        self.doy = self.input.doy  # day of the year [-]
         self.tstart = self.input.tstart  # time of the day [-]
-        self.cc = self.input.cc  # cloud cover fraction [-]
-        self.Swin = None  # incoming short wave radiation [W m-2]
-        self.Swout = None  # outgoing short wave radiation [W m-2]
-        self.Lwin = None  # incoming long wave radiation [W m-2]
-        self.Lwout = None  # outgoing long wave radiation [W m-2]
-        self.Q = self.input.Q  # net radiation [W m-2]
         self.dFz = self.input.dFz  # cloud top radiative divergence [W m-2]
 
         # initialize land surface
@@ -286,7 +257,7 @@ class Model:
         self.gD = self.input.gD  # correction factor transpiration for VPD [-]
         self.rsmin = self.input.rsmin  # minimum resistance transpiration [s m-1]
         self.rssoilmin = self.input.rssoilmin  # minimum resistance soil evaporation [s m-1]
-        self.alpha = self.input.alpha  # surface albedo [-]
+        self.alpha = self.input.alpha  # surface albedo [-]  # TODO constant; only used in radiation
 
         self.rs = 1.0e6  # resistance transpiration [s m-1]
         self.rssoil = 1.0e6  # resistance soil [s m-1]
@@ -339,8 +310,8 @@ class Model:
         self.statistics()
 
         # calculate initial diagnostic variables
-        if self.sw_rad:
-            self.run_radiation()
+        if self.radiation is not None:
+            self.radiation.run_radiation(self.t, self.dt, self.theta, self.Ps, self.h, self.alpha, self.Ts)
 
         if self.sw_sl:
             for i in range(10):
@@ -356,12 +327,18 @@ class Model:
         if self.sw_ml:
             self.run_mixed_layer()
 
+    @property
+    def Q(self):
+        if self.radiation is not None:
+            return self.radiation.Q
+        return self.input.Q0
+
     def timestep(self):
         self.statistics()
 
         # run radiation model
-        if self.sw_rad:
-            self.run_radiation()
+        if self.radiation is not None:
+            self.radiation.run_radiation(self.t, self.dt, self.theta, self.Ps, self.h, self.alpha, self.Ts)
 
         # run surface layer model
         if self.sw_sl:
@@ -559,26 +536,6 @@ class Model:
             self.v = v0 + self.dt * self.vtend
             self.dv = dv0 + self.dt * self.dvtend
 
-    def run_radiation(self):
-        sda = 0.409 * np.cos(2.0 * np.pi * (self.doy - 173.0) / 365.0)
-        sinlea = np.sin(2.0 * np.pi * self.lat / 360.0) * np.sin(sda) - np.cos(2.0 * np.pi * self.lat / 360.0) * np.cos(
-            sda
-        ) * np.cos(2.0 * np.pi * (self.t * self.dt + self.tstart * 3600.0) / 86400.0 + 2.0 * np.pi * self.lon / 360.0)
-        sinlea = max(sinlea, 0.0001)
-
-        Ta = self.theta * ((self.Ps - 0.1 * self.h * CONSTANTS.rho * CONSTANTS.g) / self.Ps) ** (
-            CONSTANTS.Rd / CONSTANTS.cp
-        )
-
-        Tr = (0.6 + 0.2 * sinlea) * (1.0 - 0.4 * self.cc)
-
-        self.Swin = CONSTANTS.S0 * Tr * sinlea
-        self.Swout = self.alpha * CONSTANTS.S0 * Tr * sinlea
-        self.Lwin = 0.8 * CONSTANTS.bolz * Ta**4.0
-        self.Lwout = CONSTANTS.bolz * self.Ts**4.0
-
-        self.Q = self.Swin - self.Swout + self.Lwin - self.Lwout
-
     def run_surface_layer(self):
         ueff = max(0.01, np.sqrt(self.u**2.0 + self.v**2.0 + self.wstar**2.0))
         self.thetasurf = self.theta + self.wtheta / (self.Cs * ueff)
@@ -697,8 +654,9 @@ class Model:
 
     def jarvis_stewart(self):
         # calculate surface resistances using Jarvis-Stewart model
-        if self.sw_rad:
-            f1 = 1.0 / min(1.0, ((0.004 * self.Swin + 0.05) / (0.81 * (0.004 * self.Swin + 1.0))))
+        if self.radiation is not None:
+            Swin = self.radiation.Swin
+            f1 = 1.0 / min(1.0, ((0.004 * Swin + 0.05) / (0.81 * (0.004 * Swin + 1.0))))
         else:
             f1 = 1.0
 
@@ -789,13 +747,13 @@ class Model:
         # calculate gross assimilation rate (Am)
         Am = Ammax * (1.0 - np.exp(-(gm * (ci - CO2comp) / Ammax)))
         Rdark = (1.0 / 9.0) * Am
-        PAR = 0.5 * max(1e-1, self.Swin * self.cveg)
+        PAR = 0.5 * max(1e-1, self.radiation.Swin * self.cveg)
 
         # calculate  light use efficiency
         alphac = self.alpha0[c] * (co2abs - CO2comp) / (co2abs + 2.0 * CO2comp)
 
         # calculate gross primary productivity
-        Ag = (Am + Rdark) * (1 - np.exp(alphac * PAR / (Am + Rdark)))
+        Ag = (Am + Rdark) * (1 - np.exp(alphac * PAR / (Am + Rdark)))  # TODO: why is this not used?
 
         # 1.- calculate upscaling from leaf to canopy: net flow CO2 into the plant (An)
         y = alphac * self.kx[c] * PAR / (Am + Rdark)
@@ -1012,10 +970,10 @@ class Model:
         self.out.L[t] = self.L
         self.out.Rib[t] = self.Rib
 
-        self.out.Swin[t] = self.Swin
-        self.out.Swout[t] = self.Swout
-        self.out.Lwin[t] = self.Lwin
-        self.out.Lwout[t] = self.Lwout
+        self.out.Swin[t] = None if self.radiation is None else self.radiation.Swin
+        self.out.Swout[t] = None if self.radiation is None else self.radiation.Swout
+        self.out.Lwin[t] = None if self.radiation is None else self.radiation.Lwin
+        self.out.Lwout[t] = None if self.radiation is None else self.radiation.Lwout
         self.out.Q[t] = self.Q
 
         self.out.ra[t] = self.ra
@@ -1035,142 +993,3 @@ class Model:
         self.out.ac[t] = self.ac
         self.out.M[t] = self.M
         self.out.dz[t] = self.dz_h
-
-    # delete class variables to facilitate analysis in ipython
-    def exitmodel(self):
-        del self.t
-        del self.dt
-        del self.tsteps
-
-        del self.h
-        del self.Ps
-        del self.fc
-        del self.ws
-        del self.we
-
-        del self.theta
-        del self.dtheta
-        del self.gammatheta
-        del self.advtheta
-        del self.beta
-        del self.wtheta
-
-        del self.T2m
-        del self.q2m
-        del self.e2m
-        del self.esat2m
-        del self.u2m
-        del self.v2m
-
-        del self.thetasurf
-        del self.qsatsurf
-        del self.thetav
-        del self.dthetav
-        del self.thetavsurf
-        del self.qsurf
-        del self.wthetav
-
-        del self.q
-        del self.qsat
-        del self.dqsatdT
-        del self.e
-        del self.esat
-        del self.dq
-        del self.gammaq
-        del self.advq
-        del self.wq
-
-        del self.u
-        del self.du
-        del self.gammau
-        del self.advu
-
-        del self.v
-        del self.dv
-        del self.gammav
-        del self.advv
-
-        del self.htend
-        del self.thetatend
-        del self.dthetatend
-        del self.qtend
-        del self.dqtend
-        del self.utend
-        del self.dutend
-        del self.vtend
-        del self.dvtend
-
-        del self.Tsoiltend
-        del self.wgtend
-        del self.Wltend
-
-        del self.ustar
-        del self.uw
-        del self.vw
-        del self.z0m
-        del self.z0h
-        del self.Cm
-        del self.Cs
-        del self.L
-        del self.Rib
-        del self.ra
-
-        del self.lat
-        del self.lon
-        del self.doy
-        del self.tstart
-
-        del self.Swin
-        del self.Swout
-        del self.Lwin
-        del self.Lwout
-        del self.cc
-
-        del self.wg
-        del self.w2
-        del self.cveg
-        del self.cliq
-        del self.Tsoil
-        del self.T2
-        del self.a
-        del self.b
-        del self.p
-        del self.CGsat
-
-        del self.wsat
-        del self.wfc
-        del self.wwilt
-
-        del self.C1sat
-        del self.C2ref
-
-        del self.LAI
-        del self.rs
-        del self.rssoil
-        del self.rsmin
-        del self.rssoilmin
-        del self.alpha
-        del self.gD
-
-        del self.Ts
-
-        del self.Wmax
-        del self.Wl
-
-        del self.Lambda
-
-        del self.Q
-        del self.H
-        del self.LE
-        del self.LEliq
-        del self.LEveg
-        del self.LEsoil
-        del self.LEpot
-        del self.LEref
-        del self.G
-
-        del self.sw_ls
-        del self.sw_rad
-        del self.sw_sl
-        del self.sw_wind
-        del self.sw_shearwe

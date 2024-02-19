@@ -29,7 +29,7 @@ Homepage = "https://classmodel.github.io/"
 Repository = "https://github.com/classmodel/modelpy"
 
 [tool.ruff]
-select = [
+lint.select = [
   "E",  # pycodestyle
   "F",  # pyflakes
   "B",  # flake8-bugbear
@@ -42,7 +42,13 @@ select = [
   "PLR",  # Pylint refactor (e.g. too-many-arguments)
   "PLW",  # Pylint warning (useless-else-on-loop)
 ]
-ignore = [
+lint.ignore = [
+  "N802",  # Function name `Q` should be lowercase
+  "N803",  # Argument name `T` should be lowercase
   "N806",  # Variable `RHlcl` in function should be lowercase
+  "N815",  # Variable `dFz` in class scope should not be mixedCase
+  "D101",  # Missing docstring in public class
+  "D102",  # Missing docstring in public method
+  "D103",  # Missing docstring in public function
 ]
 line-length = 120
