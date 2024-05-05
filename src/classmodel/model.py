@@ -314,6 +314,7 @@ class Model:
 
     def run_mixed_layer(self):
         if not self.sw_sl:
+            # PK todo: treat these two lines as a "very simple surface layer scheme"?
             # decompose ustar along the wind components
             self.uw = -np.sign(self.u) * (self.ustar**4.0 / (self.v**2.0 / self.u**2.0 + 1.0)) ** (0.5)
             self.vw = -np.sign(self.v) * (self.ustar**4.0 / (self.u**2.0 / self.v**2.0 + 1.0)) ** (0.5)
@@ -420,83 +421,6 @@ class Model:
             self.du = du0 + self.dt * self.dutend
             self.v = v0 + self.dt * self.vtend
             self.dv = dv0 + self.dt * self.dvtend
-
-    def ribtol(self, Rib, zsl, z0m, z0h):
-        if Rib > 0.0:
-            L = 1.0
-            L0 = 2.0
-        else:
-            L = -1.0
-            L0 = -2.0
-
-        while abs(L - L0) > 0.001:
-            L0 = L
-            fx = (
-                Rib
-                - zsl
-                / L
-                * (np.log(zsl / z0h) - self.psih(zsl / L) + self.psih(z0h / L))
-                / (np.log(zsl / z0m) - self.psim(zsl / L) + self.psim(z0m / L)) ** 2.0
-            )
-            Lstart = L - 0.001 * L
-            Lend = L + 0.001 * L
-            fxdif = (
-                (
-                    -zsl
-                    / Lstart
-                    * (np.log(zsl / z0h) - self.psih(zsl / Lstart) + self.psih(z0h / Lstart))
-                    / (np.log(zsl / z0m) - self.psim(zsl / Lstart) + self.psim(z0m / Lstart)) ** 2.0
-                )
-                - (
-                    -zsl
-                    / Lend
-                    * (np.log(zsl / z0h) - self.psih(zsl / Lend) + self.psih(z0h / Lend))
-                    / (np.log(zsl / z0m) - self.psim(zsl / Lend) + self.psim(z0m / Lend)) ** 2.0
-                )
-            ) / (Lstart - Lend)
-            L = L - fx / fxdif
-
-            if abs(L) > 1e15:
-                break
-
-        return L
-
-    def psim(self, zeta):
-        if zeta <= 0:
-            x = (1.0 - 16.0 * zeta) ** (0.25)
-            psim = 3.14159265 / 2.0 - 2.0 * np.arctan(x) + np.log((1.0 + x) ** 2.0 * (1.0 + x**2.0) / 8.0)
-            # x     = (1. + 3.6 * abs(zeta) ** (2./3.)) ** (-0.5)
-            # psim = 3. * np.log( (1. + 1. / x) / 2.)
-        else:
-            psim = -2.0 / 3.0 * (zeta - 5.0 / 0.35) * np.exp(-0.35 * zeta) - zeta - (10.0 / 3.0) / 0.35
-        return psim
-
-    def psih(self, zeta):
-        if zeta <= 0:
-            x = (1.0 - 16.0 * zeta) ** (0.25)
-            psih = 2.0 * np.log((1.0 + x * x) / 2.0)
-            # x     = (1. + 7.9 * abs(zeta) ** (2./3.)) ** (-0.5)
-            # psih  = 3. * np.log( (1. + 1. / x) / 2.)
-        else:
-            psih = (
-                -2.0 / 3.0 * (zeta - 5.0 / 0.35) * np.exp(-0.35 * zeta)
-                - (1.0 + (2.0 / 3.0) * zeta) ** (1.5)
-                - (10.0 / 3.0) / 0.35
-                + 1.0
-            )
-        return psih
-
-    def factorial(self, k):
-        factorial = 1
-        for n in range(2, k + 1):
-            factorial = factorial * float(n)
-        return factorial
-
-    def E1(self, x):
-        E1sum = 0
-        for k in range(1, 100):
-            E1sum += pow((-1.0), (k + 0.0)) * pow(x, (k + 0.0)) / ((k + 0.0) * self.factorial(k))
-        return -0.57721566490153286060 - np.log(x) - E1sum
 
     # store model output
     def store(self):
