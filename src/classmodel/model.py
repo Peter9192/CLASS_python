@@ -28,7 +28,6 @@ import numpy as np
 
 from classmodel.constants import CONSTANTS
 from classmodel.output import ModelOutput
-from classmodel.radiation import Radiation
 
 
 def esat(T):
@@ -57,16 +56,6 @@ class Model:
 
     def init(self):
         """Assign variables from input data."""
-        self.mco2 = 44.0  # molecular weight CO2 [g mol -1]
-        self.mair = 28.9  # molecular weight air [g mol -1]
-        self.nuco2q = 1.6  # ratio molecular viscosity water to carbon dioxide
-
-        self.Cw = 0.0016  # constant water stress correction (eq. 13 Jacobs et al. 2007) [-]
-        self.wmax = 0.55  # upper reference value soil water [-]
-        self.wmin = 0.005  # lower reference value soil water [-]
-        self.R10 = 0.23  # respiration at 10 C [mg CO2 m-2 s-1]
-        self.E0 = 53.3e3  # activation energy [53.3 kJ kmol-1]
-
         # Read switches
         self.sw_ml = self.input.sw_ml  # mixed-layer model switch
         self.sw_shearwe = self.input.sw_shearwe  # shear growth ABL switch
@@ -142,7 +131,7 @@ class Model:
         self.dqsatdT = None  # slope saturated specific humidity curve [g kg-1 K-1]
 
         # CO2
-        fac = self.mair / (CONSTANTS.rho * self.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
+        fac = CONSTANTS.mair / (CONSTANTS.rho * CONSTANTS.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
         self.CO2 = self.input.CO2  # initial mixed-layer CO2 [ppm]
         self.dCO2 = self.input.dCO2  # initial CO2 jump at h [ppm]
         self.gammaCO2 = self.input.gammaCO2  # free atmosphere CO2 lapse rate [ppm m-1]
@@ -534,7 +523,7 @@ class Model:
         self.out.e[t] = self.e
         self.out.esat[t] = self.esat
 
-        fac = (CONSTANTS.rho * self.mco2) / self.mair
+        fac = (CONSTANTS.rho * CONSTANTS.mco2) / CONSTANTS.mair
         self.out.CO2[t] = self.CO2
         self.out.dCO2[t] = self.dCO2
         self.out.wCO2[t] = self.wCO2 * fac
