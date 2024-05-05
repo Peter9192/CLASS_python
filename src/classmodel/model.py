@@ -384,32 +384,15 @@ class Model:
             self.dztend = 0.0
 
     def integrate_mixed_layer(self):
-        # set values previous time step
-        h0 = self.h
-
-        theta0 = self.theta
-        dtheta0 = self.dtheta
-        q0 = self.q
-        dq0 = self.dq
-        CO20 = self.CO2
-        dCO20 = self.dCO2
-
-        u0 = self.u
-        du0 = self.du
-        v0 = self.v
-        dv0 = self.dv
-
-        dz0 = self.dz_h
-
         # integrate mixed-layer equations
-        self.h = h0 + self.dt * self.htend
-        self.theta = theta0 + self.dt * self.thetatend
-        self.dtheta = dtheta0 + self.dt * self.dthetatend
-        self.q = q0 + self.dt * self.qtend
-        self.dq = dq0 + self.dt * self.dqtend
-        self.CO2 = CO20 + self.dt * self.CO2tend
-        self.dCO2 = dCO20 + self.dt * self.dCO2tend
-        self.dz_h = dz0 + self.dt * self.dztend
+        self.h += self.dt * self.htend
+        self.theta += self.dt * self.thetatend
+        self.dtheta += self.dt * self.dthetatend
+        self.q += self.dt * self.qtend
+        self.dq += self.dt * self.dqtend
+        self.CO2 += self.dt * self.CO2tend
+        self.dCO2 += self.dt * self.dCO2tend
+        self.dz_h += self.dt * self.dztend
 
         # Limit dz to minimal value
         dz0 = 50
@@ -417,10 +400,10 @@ class Model:
             self.dz_h = dz0
 
         if self.sw_wind:
-            self.u = u0 + self.dt * self.utend
-            self.du = du0 + self.dt * self.dutend
-            self.v = v0 + self.dt * self.vtend
-            self.dv = dv0 + self.dt * self.dvtend
+            self.u += self.dt * self.utend
+            self.du += self.dt * self.dutend
+            self.v += self.dt * self.vtend
+            self.dv += self.dt * self.dvtend
 
     # store model output
     def store(self):
