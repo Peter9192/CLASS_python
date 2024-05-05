@@ -369,14 +369,6 @@ class Model:
         self.dqtend = self.gammaq * (self.we + self.wf - self.M) - self.qtend + w_q_ft
         self.dCO2tend = self.gammaCO2 * (self.we + self.wf - self.M) - self.CO2tend + w_CO2_ft
 
-        # assume u + du = ug, so ug - u = du
-        if self.sw_wind:
-            self.utend = -self.fc * self.dv + (self.uw + self.we * self.du) / self.h + self.advu
-            self.vtend = self.fc * self.du + (self.vw + self.we * self.dv) / self.h + self.advv
-
-            self.dutend = self.gammau * (self.we + self.wf - self.M) - self.utend
-            self.dvtend = self.gammav * (self.we + self.wf - self.M) - self.vtend
-
         # tendency of the transition layer thickness
         if self.ac > 0 or self.lcl - self.h < 300:
             self.dztend = ((self.lcl - self.h) - self.dz_h) / 7200.0
@@ -398,12 +390,6 @@ class Model:
         dz0 = 50
         if self.dz_h < dz0:
             self.dz_h = dz0
-
-        if self.sw_wind:
-            self.u += self.dt * self.utend
-            self.du += self.dt * self.dutend
-            self.v += self.dt * self.vtend
-            self.dv += self.dt * self.dvtend
 
     # store model output
     def store(self):
