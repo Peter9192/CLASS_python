@@ -31,7 +31,7 @@ def test_model():
     config = CLASSConfig()
     r1 = Model(config)
     r1.run()
-    output = r1.out.to_pandas()
+    output = r1.out
     expected_output = pd.read_csv(REFERENCE_DATA, index_col=0)
 
     pd.testing.assert_frame_equal(output, expected_output)

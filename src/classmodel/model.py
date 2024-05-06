@@ -25,9 +25,9 @@ along with CLASS.  If not, see <http://www.gnu.org/licenses/>.
 import copy as cp
 
 import numpy as np
+import pandas as pd
 
 from classmodel import constants
-from classmodel.output import ModelOutput
 
 
 def esat(T):
@@ -254,7 +254,7 @@ class Model:
         assert self.c_beta >= 0 or self.c_beta <= 1
 
         # initialize output
-        self.out = ModelOutput(self.tsteps)
+        self.out = pd.DataFrame(columns=self.OUTPUT_VAR_NAMES, index=np.arange(self.tsteps), dtype=float)
 
         self.statistics()
 
@@ -274,6 +274,28 @@ class Model:
         # time integrate mixed-layer model
         if self.sw_ml:
             self.integrate_mixed_layer()
+
+    def store(self):
+        for var in self.OUTPUT_VAR_NAMES:
+            value = getattr(self, var, 0)  # TODO: raise if not exist?
+
+            # Special cases
+            if var == "t":
+                value = self.t * self.dt / 3600.0 + self.tstart
+            if var in ["wCO2", "wCO2e", "wCO2R", "wCO2A"]:
+                fac = (constants.rho * constants.mco2) / constants.mair
+                value = getattr(self, var) * fac
+            if var == "dz":
+                value = getattr(self, "dz_h", None)
+            if var == "zlcl":
+                value = getattr(self, "lcl", None)
+            if var in ["Swin", "Swout", "Lwin", "Lwout"]:
+                value = None
+            if var in ["z0m", "z0h"]:
+                # Was initialized but never updated
+                value = 0
+
+            self.out.loc[self.t, var] = value
 
     def statistics(self):
         # Calculate virtual temperatures
@@ -391,83 +413,91 @@ class Model:
         if self.dz_h < dz0:
             self.dz_h = dz0
 
-    # store model output
-    def store(self):
-        t = self.t
-        self.out.t[t] = t * self.dt / 3600.0 + self.tstart
-        self.out.h[t] = self.h
-
-        self.out.theta[t] = self.theta
-        self.out.thetav[t] = self.thetav
-        self.out.dtheta[t] = self.dtheta
-        self.out.dthetav[t] = self.dthetav
-        self.out.wtheta[t] = self.wtheta
-        self.out.wthetav[t] = self.wthetav
-        self.out.wthetae[t] = self.wthetae
-        self.out.wthetave[t] = self.wthetave
-
-        self.out.q[t] = self.q
-        self.out.dq[t] = self.dq
-        self.out.wq[t] = self.wq
-        self.out.wqe[t] = self.wqe
-        self.out.wqM[t] = self.wqM
-
-        self.out.qsat[t] = self.qsat
-        self.out.e[t] = self.e
-        self.out.esat[t] = self.esat
-
-        fac = (constants.rho * constants.mco2) / constants.mair
-        self.out.CO2[t] = self.CO2
-        self.out.dCO2[t] = self.dCO2
-        self.out.wCO2[t] = self.wCO2 * fac
-        self.out.wCO2e[t] = self.wCO2e * fac
-        self.out.wCO2R[t] = self.wCO2R * fac
-        self.out.wCO2A[t] = self.wCO2A * fac
-
-        self.out.u[t] = self.u
-        self.out.du[t] = self.du
-        self.out.uw[t] = self.uw
-
-        self.out.v[t] = self.v
-        self.out.dv[t] = self.dv
-        self.out.vw[t] = self.vw
-
-        self.out.T2m[t] = self.T2m
-        self.out.q2m[t] = self.q2m
-        self.out.u2m[t] = self.u2m
-        self.out.v2m[t] = self.v2m
-        self.out.e2m[t] = self.e2m
-        self.out.esat2m[t] = self.esat2m
-
-        self.out.thetasurf[t] = self.thetasurf
-        self.out.thetavsurf[t] = self.thetavsurf
-        self.out.qsurf[t] = self.qsurf
-        self.out.ustar[t] = self.ustar
-        self.out.Cm[t] = self.Cm
-        self.out.Cs[t] = self.Cs
-        self.out.L[t] = self.L
-        self.out.Rib[t] = self.Rib
-
-        self.out.Swin[t] = None  # Set by radiation scheme
-        self.out.Swout[t] = None
-        self.out.Lwin[t] = None
-        self.out.Lwout[t] = None
-        self.out.Q[t] = self.Q
-
-        self.out.ra[t] = self.ra
-        self.out.rs[t] = self.rs
-        self.out.H[t] = self.H
-        self.out.LE[t] = self.LE
-        self.out.LEliq[t] = self.LEliq
-        self.out.LEveg[t] = self.LEveg
-        self.out.LEsoil[t] = self.LEsoil
-        self.out.LEpot[t] = self.LEpot
-        self.out.LEref[t] = self.LEref
-        self.out.G[t] = self.G
-
-        self.out.zlcl[t] = self.lcl
-        self.out.RH_h[t] = self.RH_h
-
-        self.out.ac[t] = self.ac
-        self.out.M[t] = self.M
-        self.out.dz[t] = self.dz_h
+    OUTPUT_VAR_NAMES = [
+        "t",  # time [s]
+        #
+        # mixed-layer variables
+        "h",  # ABL height [m]
+        #
+        "theta",  # initial mixed-layer potential temperature [K]
+        "thetav",  # initial mixed-layer virtual potential temperature [K]
+        "dtheta",  # initial potential temperature jump at h [K]
+        "dthetav",  # initial virtual potential temperature jump at h [K]
+        "wtheta",  # surface kinematic heat flux [K m s-1]
+        "wthetav",  # surface kinematic virtual heat flux [K m s-1]
+        "wthetae",  # entrainment kinematic heat flux [K m s-1]
+        "wthetave",  # entrainment kinematic virtual heat flux [K m s-1]
+        #
+        "q",  # mixed-layer specific humidity [kg kg-1]
+        "dq",  # initial specific humidity jump at h [kg kg-1]
+        "wq",  # surface kinematic moisture flux [kg kg-1 m s-1]
+        "wqe",  # entrainment kinematic moisture flux [kg kg-1 m s-1]
+        "wqM",  # cumulus mass-flux kinematic moisture flux [kg kg-1 m s-1]
+        #
+        "qsat",  # mixed-layer saturated specific humidity [kg kg-1]
+        "e",  # mixed-layer vapor pressure [Pa]
+        "esat",  # mixed-layer saturated vapor pressure [Pa]
+        #
+        "CO2",  # mixed-layer CO2 [ppm]
+        "dCO2",  # initial CO2 jump at h [ppm]
+        "wCO2",  # surface total CO2 flux [mgC m-2 s-1]
+        "wCO2A",  # surface assimilation CO2 flux [mgC m-2 s-1]
+        "wCO2R",  # surface respiration CO2 flux [mgC m-2 s-1]
+        "wCO2e",  # entrainment CO2 flux [mgC m-2 s-1]
+        "wCO2M",  # CO2 mass flux [mgC m-2 s-1]
+        #
+        "u",  # initial mixed-layer u-wind speed [m s-1]
+        "du",  # initial u-wind jump at h [m s-1]
+        "uw",  # surface momentum flux u [m2 s-2]
+        #
+        "v",  # initial mixed-layer u-wind speed [m s-1]
+        "dv",  # initial u-wind jump at h [m s-1]
+        "vw",  # surface momentum flux v [m2 s-2]
+        #
+        # diagnostic meteorological variables
+        "T2m",  # 2m temperature [K]
+        "q2m",  # 2m specific humidity [kg kg-1]
+        "u2m",  # 2m u-wind [m s-1]
+        "v2m",  # 2m v-wind [m s-1]
+        "e2m",  # 2m vapor pressure [Pa]
+        "esat2m",  # 2m saturated vapor pressure [Pa]
+        #
+        # surface-layer variables
+        "thetasurf",  # surface potential temperature [K]
+        "thetavsurf",  # surface virtual potential temperature [K]
+        "qsurf",  # surface specific humidity [kg kg-1]
+        "ustar",  # surface friction velocity [m s-1]
+        "z0m",  # roughness length for momentum [m]
+        "z0h",  # roughness length for scalars [m]
+        "Cm",  # drag coefficient for momentum []
+        "Cs",  # drag coefficient for scalars []
+        "L",  # Obukhov length [m]
+        "Rib",  # bulk Richardson number [-]
+        #
+        # radiation variables
+        "Swin",  # incoming short wave radiation [W m-2]
+        "Swout",  # outgoing short wave radiation [W m-2]
+        "Lwin",  # incoming long wave radiation [W m-2]
+        "Lwout",  # outgoing long wave radiation [W m-2]
+        "Q",  # net radiation [W m-2]
+        #
+        # land surface variables
+        "ra",  # aerodynamic resistance [s m-1]
+        "rs",  # surface resistance [s m-1]
+        "H",  # sensible heat flux [W m-2]
+        "LE",  # evapotranspiration [W m-2]
+        "LEliq",  # open water evaporation [W m-2]
+        "LEveg",  # transpiration [W m-2]
+        "LEsoil",  # soil evaporation [W m-2]
+        "LEpot",  # potential evaporation [W m-2]
+        "LEref",  # reference evaporation at rs = rsmin / LAI [W m-2]
+        "G",  # ground heat flux [W m-2]
+        # Mixed-layer top variables
+        "zlcl",  # lifting condensation level [m]
+        "RH_h",  # mixed-layer top relative humidity [-]
+        # cumulus variables
+        "ac",  # cloud core fraction [-]
+        "M",  # cloud core mass flux [m s-1]
+        "dz",  # transition layer thickness [m]
+    ]
+    """List of model variables availabe for output."""
