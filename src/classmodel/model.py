@@ -26,7 +26,7 @@ import copy as cp
 
 import numpy as np
 
-from classmodel.constants import CONSTANTS
+from classmodel import constants
 from classmodel.output import ModelOutput
 
 
@@ -131,7 +131,7 @@ class Model:
         self.dqsatdT = None  # slope saturated specific humidity curve [g kg-1 K-1]
 
         # CO2
-        fac = CONSTANTS.mair / (CONSTANTS.rho * CONSTANTS.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
+        fac = constants.mair / (constants.rho * constants.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
         self.CO2 = self.input.CO2  # initial mixed-layer CO2 [ppm]
         self.dCO2 = self.input.dCO2  # initial CO2 jump at h [ppm]
         self.gammaCO2 = self.input.gammaCO2  # free atmosphere CO2 lapse rate [ppm m-1]
@@ -284,11 +284,11 @@ class Model:
         )
 
         # Mixed-layer top properties
-        self.P_h = self.Ps - CONSTANTS.rho * CONSTANTS.g * self.h
-        self.T_h = self.theta - CONSTANTS.g / CONSTANTS.cp * self.h
+        self.P_h = self.Ps - constants.rho * constants.g * self.h
+        self.T_h = self.theta - constants.g / constants.cp * self.h
 
-        # self.P_h    = self.Ps / np.exp((CONSTANTS.g * self.h)/(CONSTANTS.Rd * self.theta))
-        # self.T_h    = self.theta / (self.Ps / self.P_h)**(CONSTANTS.Rd/CONSTANTS.cp)
+        # self.P_h    = self.Ps / np.exp((constants.g * self.h)/(constants.Rd * self.theta))
+        # self.T_h    = self.theta / (self.Ps / self.P_h)**(constants.Rd/constants.cp)
 
         self.RH_h = self.q / qsat(self.T_h, self.P_h)
 
@@ -303,8 +303,8 @@ class Model:
         it = 0
         while ((RHlcl <= 0.9999) or (RHlcl >= 1.0001)) and it < itmax:
             self.lcl += (1.0 - RHlcl) * 1000.0
-            p_lcl = self.Ps - CONSTANTS.rho * CONSTANTS.g * self.lcl
-            T_lcl = self.theta - CONSTANTS.g / CONSTANTS.cp * self.lcl
+            p_lcl = self.Ps - constants.rho * constants.g * self.lcl
+            T_lcl = self.theta - constants.g / constants.cp * self.lcl
             RHlcl = self.q / qsat(T_lcl, p_lcl)
             it += 1
 
@@ -333,11 +333,11 @@ class Model:
             w_CO2_ft = 0.0
 
         # calculate mixed-layer growth due to cloud top radiative divergence
-        self.wf = self.dFz / (CONSTANTS.rho * CONSTANTS.cp * self.dtheta)
+        self.wf = self.dFz / (constants.rho * constants.cp * self.dtheta)
 
         # calculate convective velocity scale w*
         if self.wthetav > 0.0:
-            self.wstar = ((CONSTANTS.g * self.h * self.wthetav) / self.thetav) ** (1.0 / 3.0)
+            self.wstar = ((constants.g * self.h * self.wthetav) / self.thetav) ** (1.0 / 3.0)
         else:
             self.wstar = 1e-6
 
@@ -346,7 +346,7 @@ class Model:
 
         # compute mixed-layer tendencies
         if self.sw_shearwe:
-            self.we = (-self.wthetave + 5.0 * self.ustar**3.0 * self.thetav / (CONSTANTS.g * self.h)) / self.dthetav
+            self.we = (-self.wthetave + 5.0 * self.ustar**3.0 * self.thetav / (constants.g * self.h)) / self.dthetav
         else:
             self.we = -self.wthetave / self.dthetav
 
@@ -416,7 +416,7 @@ class Model:
         self.out.e[t] = self.e
         self.out.esat[t] = self.esat
 
-        fac = (CONSTANTS.rho * CONSTANTS.mco2) / CONSTANTS.mair
+        fac = (constants.rho * constants.mco2) / constants.mair
         self.out.CO2[t] = self.CO2
         self.out.dCO2[t] = self.dCO2
         self.out.wCO2[t] = self.wCO2 * fac
