@@ -23,6 +23,7 @@ along with CLASS.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import copy as cp
+from functools import cached_property, lru_cache
 
 import numpy as np
 import pandas as pd
@@ -72,34 +73,6 @@ class Model:
         self.CO2 = self.input.CO2  # initial mixed-layer CO2 [ppm]
         self.dCO2 = self.input.dCO2  # initial CO2 jump at h [ppm]
 
-        # Computed properties (they are set diagnostically)?
-        self.ws = None  # large-scale vertical velocity [m s-1]
-        self.wf = None  # mixed-layer growth due to radiative divergence [m s-1]
-        self.we = -1.0  # entrainment velocity [m s-1]
-        self.wthetae = None  # entrainment kinematic heat flux [K m s-1]
-        self.thetav = None  # initial mixed-layer potential temperature [K]
-        self.wstar = 0.0  # convective velocity scale [m s-1]
-        self.P_h = None  # Mixed-layer top pressure [pa]
-        self.T_h = None  # Mixed-layer top absolute temperature [K]
-        self.RH_h = None  # Mixed-layer top relavtive humidity [-]
-        self.lcl = None  # Lifting condensation level [m]  # PK: may want to cache it
-        self.dthetav = None  # initial virtual temperature jump at h [K]
-        self.wthetav = None  # surface kinematic virtual heat flux [K m s-1]
-        self.wthetave = None  # entrainment kinematic virtual heat flux [K m s-1]
-        self.wCO2e = None  # entrainment CO2 flux [ppm m s-1]
-        self.wqe = None  # entrainment moisture flux [kg kg-1 m s-1]
-        # Tendencies
-        self.htend = None  # tendency of CBL [m s-1]
-        self.thetatend = None  # tendency of mixed-layer potential temperature [K s-1]
-        self.dthetatend = None  # tendency of potential temperature jump at h [K s-1]
-        self.qtend = None  # tendency of mixed-layer specific humidity [kg kg-1 s-1]
-        self.dqtend = None  # tendency of specific humidity jump at h [kg kg-1 s-1]
-        self.CO2tend = None  # tendency of CO2 humidity [ppm]
-        self.dCO2tend = None  # tendency of CO2 jump at h [ppm s-1]
-        self.dztend = None  # tendency of transition layer thickness [m s-1]
-        self.uw = None  # surface momentum flux in u-direction [m2 s-2]
-        self.vw = None  # surface momentum flux in v-direction [m2 s-2]
-
         # Constants
         self.ac = 0.0  # Cloud core fraction [-]
         self.M = 0.0  # Cloud core mass flux [m s-1]
@@ -114,18 +87,7 @@ class Model:
         # initialize output
         self.out = pd.DataFrame(columns=self.OUTPUT_VAR_NAMES, index=np.arange(self.tsteps), dtype=float)
 
-        self.statistics()
-
-        if self.sw_ml:
-            self.run_mixed_layer()
-
     def timestep(self):
-        self.statistics()
-
-        # run mixed-layer model
-        if self.sw_ml:
-            self.run_mixed_layer()
-
         # store output before time integration
         self.store()
 
@@ -167,112 +129,187 @@ class Model:
 
             self.out.loc[self.t, var] = value
 
-    def statistics(self):
-        # Calculate virtual temperatures
-        self.thetav = self.theta + 0.61 * self.theta * self.q
-        self.wthetav = self.input.wtheta + 0.61 * self.theta * self.input.wq
-        self.dthetav = (self.theta + self.dtheta) * (1.0 + 0.61 * (self.q + self.dq)) - self.theta * (
-            1.0 + 0.61 * self.q
-        )
+    @property
+    def thetav(self):
+        """Initial mixed-layer potential temperature [K]."""
+        return self.theta + 0.61 * self.theta * self.q
 
-        # Mixed-layer top properties
-        self.P_h = self.input.Ps - constants.rho * constants.g * self.h
-        self.T_h = self.theta - constants.g / constants.cp * self.h
+    @property
+    def wthetav(self):
+        """Surface kinematic virtual heat flux [K m s-1]."""
+        return self.input.wtheta + 0.61 * self.theta * self.input.wq
 
-        # self.P_h    = self.input.Ps / np.exp((constants.g * self.h)/(constants.Rd * self.theta))
-        # self.T_h    = self.theta / (self.input.Ps / self.P_h)**(constants.Rd/constants.cp)
+    @property
+    def dthetav(self):
+        """Initial virtual temperature jump at h [K]."""
+        return (self.theta + self.dtheta) * (1.0 + 0.61 * (self.q + self.dq)) - self.theta * (1.0 + 0.61 * self.q)
 
-        self.RH_h = self.q / qsat(self.T_h, self.P_h)
+    @property
+    def P_h(self):
+        """Mixed-layer top pressure [pa]."""
+        # return self.input.Ps / np.exp((constants.g * self.h)/(constants.Rd * self.theta))
+        return self.input.Ps - constants.rho * constants.g * self.h
 
+    @property
+    def T_h(self):
+        """Mixed-layer top absolute temperature [K]."""
+        # return self.theta / (self.input.Ps / self.P_h)**(constants.Rd/constants.cp)
+        return self.theta - constants.g / constants.cp * self.h
+
+    @property
+    def RH_h(self):
+        """Mixed-layer top relavtive humidity [-]."""
+        return self.q / qsat(self.T_h, self.P_h)
+
+    @property
+    def lcl(self):
+        """Lifting condensation level [m]."""
         # Find lifting condensation level iteratively
         if self.t == 0:
-            self.lcl = self.h
+            lcl = self.h
             RHlcl = 0.5
         else:
+            lcl = self._lcl
             RHlcl = 0.9998
 
         itmax = 30
         it = 0
         while ((RHlcl <= 0.9999) or (RHlcl >= 1.0001)) and it < itmax:
-            self.lcl += (1.0 - RHlcl) * 1000.0
-            p_lcl = self.input.Ps - constants.rho * constants.g * self.lcl
-            T_lcl = self.theta - constants.g / constants.cp * self.lcl
+            lcl += (1.0 - RHlcl) * 1000.0
+            p_lcl = self.input.Ps - constants.rho * constants.g * lcl
+            T_lcl = self.theta - constants.g / constants.cp * lcl
             RHlcl = self.q / qsat(T_lcl, p_lcl)
             it += 1
 
         if it == itmax:
             print("LCL calculation not converged!!")
-            print(f"RHlcl = {RHlcl:f}, zlcl={self.lcl:f}")
+            print(f"RHlcl = {RHlcl:f}, zlcl={lcl:f}")
 
-    def run_mixed_layer(self):
-        if not self.sw_sl:
-            # PK todo: treat these two lines as a "very simple surface layer scheme"?
-            # decompose ustar along the wind components
-            self.uw = -np.sign(self.input.u) * (
-                self.input.ustar**4.0 / (self.input.v**2.0 / self.input.u**2.0 + 1.0)
-            ) ** (0.5)
-            self.vw = -np.sign(self.input.v) * (
-                self.input.ustar**4.0 / (self.input.u**2.0 / self.input.v**2.0 + 1.0)
-            ) ** (0.5)
+        self._lcl = lcl
+        return lcl
 
-        # calculate large-scale vertical velocity (subsidence)
-        self.ws = -self.input.divU * self.h
+    @cached_property
+    def uw(self):
+        """Surface momentum flux in u-direction [m2 s-2]."""
+        return -np.sign(self.input.u) * (self.input.ustar**4.0 / (self.input.v**2.0 / self.input.u**2.0 + 1.0)) ** (0.5)
 
-        # calculate compensation to fix the free troposphere in case of subsidence
-        if self.sw_fixft:
-            w_th_ft = self.input.gammatheta * self.ws
-            w_q_ft = self.input.gammaq * self.ws
-            w_CO2_ft = self.input.gammaCO2 * self.ws
-        else:
-            w_th_ft = 0.0
-            w_q_ft = 0.0
-            w_CO2_ft = 0.0
+    @cached_property
+    def vw(self):
+        """Surface momentum flux in v-direction [m2 s-2]."""
+        return -np.sign(self.input.v) * (self.input.ustar**4.0 / (self.input.u**2.0 / self.input.v**2.0 + 1.0)) ** (0.5)
 
-        # calculate mixed-layer growth due to cloud top radiative divergence
-        self.wf = self.input.dFz / (constants.rho * constants.cp * self.dtheta)
+    @property
+    def ws(self):
+        """Large-scale vertical velocity [m s-1]."""
+        return -self.input.divU * self.h
 
-        # calculate convective velocity scale w*
+    @property
+    def wf(self):
+        """Mixed-layer growth due to radiative divergence [m s-1]."""
+        return self.input.dFz / (constants.rho * constants.cp * self.dtheta)
+
+    @property
+    def wstar(self):
+        """Convective velocity scale [m s-1]."""
         if self.wthetav > 0.0:
-            self.wstar = ((constants.g * self.h * self.wthetav) / self.thetav) ** (1.0 / 3.0)
-        else:
-            self.wstar = 1e-6
+            return ((constants.g * self.h * self.wthetav) / self.thetav) ** (1.0 / 3.0)
+        return 1e-6
 
-        # Virtual heat entrainment flux
-        self.wthetave = -self.input.beta * self.wthetav
+    @property
+    def wthetave(self):
+        """Entrainment kinematic virtual heat flux [K m s-1]."""
+        return -self.input.beta * self.wthetav
 
-        # compute mixed-layer tendencies
+    @property
+    def we(self):
+        """Entrainment velocity [m s-1]."""
         if self.sw_shearwe:
-            self.we = (
-                -self.wthetave + 5.0 * self.input.ustar**3.0 * self.thetav / (constants.g * self.h)
-            ) / self.dthetav
+            we = (-self.wthetave + 5.0 * self.input.ustar**3.0 * self.thetav / (constants.g * self.h)) / self.dthetav
         else:
-            self.we = -self.wthetave / self.dthetav
+            we = -self.wthetave / self.dthetav
 
         # Don't allow boundary layer shrinking if wtheta < 0
-        if self.we < 0:
-            self.we = 0.0
+        if we < 0:
+            we = 0.0
 
-        # Calculate entrainment fluxes
-        self.wthetae = -self.we * self.dtheta
-        self.wqe = -self.we * self.dq
-        self.wCO2e = -self.we * self.dCO2
+        return we
 
-        self.htend = self.we + self.ws + self.wf - self.M
+    @property
+    def wthetae(self):
+        """Entrainment kinematic heat flux [K m s-1]."""
+        return -self.we * self.dtheta
 
-        fac = constants.mair / (constants.rho * constants.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
-        self.thetatend = (self.input.wtheta - self.wthetae) / self.h + self.input.advtheta
-        self.qtend = (self.input.wq - self.wqe - self.wqM) / self.h + self.input.advq
-        self.CO2tend = (self.input.wCO2 * fac - self.wCO2e - self.wCO2M) / self.h + self.input.advCO2
+    @property
+    def wqe(self):
+        """Entrainment moisture flux [kg kg-1 m s-1]."""
+        return -self.we * self.dq
 
-        self.dthetatend = self.input.gammatheta * (self.we + self.wf - self.M) - self.thetatend + w_th_ft
-        self.dqtend = self.input.gammaq * (self.we + self.wf - self.M) - self.qtend + w_q_ft
-        self.dCO2tend = self.input.gammaCO2 * (self.we + self.wf - self.M) - self.CO2tend + w_CO2_ft
+    @property
+    def wCO2e(self):
+        """Entrainment CO2 flux [ppm m s-1]."""
+        return -self.we * self.dCO2
 
-        # tendency of the transition layer thickness
-        if self.ac > 0 or self.lcl - self.h < 300:
-            self.dztend = ((self.lcl - self.h) - self.dz_h) / 7200.0
+    @property
+    def htend(self):
+        """Tendency of CBL [m s-1]."""
+        return self.we + self.ws + self.wf - self.M
+
+    @property
+    def thetatend(self):
+        """Tendency of mixed-layer potential temperature [K s-1]."""
+        return (self.input.wtheta - self.wthetae) / self.h + self.input.advtheta
+
+    @property
+    def dthetatend(self):
+        """Tendency of potential temperature jump at h [K s-1]."""
+        if self.sw_fixft:
+            # calculate compensation to fix the free troposphere in case of subsidence
+            w_th_ft = self.input.gammatheta * self.ws
         else:
-            self.dztend = 0.0
+            w_th_ft = 0.0
+
+        return self.input.gammatheta * (self.we + self.wf - self.M) - self.thetatend + w_th_ft
+
+    @property
+    def qtend(self):
+        """Tendency of mixed-layer specific humidity [kg kg-1 s-1]."""
+        return (self.input.wq - self.wqe - self.wqM) / self.h + self.input.advq
+
+    @property
+    def dqtend(self):
+        """Tendency of specific humidity jump at h [kg kg-1 s-1]."""
+
+        if self.sw_fixft:
+            # calculate compensation to fix the free troposphere in case of subsidence
+            w_q_ft = self.input.gammaq * self.ws
+        else:
+            w_q_ft = 0.0
+
+        return self.input.gammaq * (self.we + self.wf - self.M) - self.qtend + w_q_ft
+
+    @property
+    def CO2tend(self):
+        """Tendency of CO2 humidity [ppm]."""
+        fac = constants.mair / (constants.rho * constants.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
+        return (self.input.wCO2 * fac - self.wCO2e - self.wCO2M) / self.h + self.input.advCO2
+
+    @property
+    def dCO2tend(self):
+        """Tendency of CO2 jump at h [ppm s-1]."""
+        if self.sw_fixft:
+            # calculate compensation to fix the free troposphere in case of subsidence
+            w_CO2_ft = self.input.gammaCO2 * self.ws
+        else:
+            w_CO2_ft = 0.0
+
+        return self.input.gammaCO2 * (self.we + self.wf - self.M) - self.CO2tend + w_CO2_ft
+
+    @property
+    def dztend(self):
+        """Tendency of transition layer thickness [m s-1]."""
+        if self.ac > 0 or self.lcl - self.h < 300:
+            return ((self.lcl - self.h) - self.dz_h) / 7200.0
+        return 0.0
 
     def integrate_mixed_layer(self):
         # integrate mixed-layer equations
