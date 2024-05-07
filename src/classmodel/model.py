@@ -100,44 +100,16 @@ class Model:
         self.uw = None  # surface momentum flux in u-direction [m2 s-2]
         self.vw = None  # surface momentum flux in v-direction [m2 s-2]
 
-        # Model parameters (they remain constant)
-        self.Ps = self.input.Ps  # surface pressure [Pa]
-        self.divU = self.input.divU  # horizontal large-scale divergence of wind [s-1]
-        self.beta = self.input.beta  # entrainment ratio for virtual heat [-]
-        self.advtheta = self.input.advtheta  # advection of heat [K s-1]
-        self.advq = self.input.advq  # advection of moisture [kg kg-1 s-1]
-        self.advCO2 = self.input.advCO2  # advection of CO2 [ppm s-1]
-        self.wtheta = self.input.wtheta  # surface kinematic heat flux [K m s-1]
-        self.wq = self.input.wq  # surface kinematic moisture flux [kg kg-1 m s-1]
-        self.gammatheta = self.input.gammatheta  # free atmosphere potential temperature lapse rate [K m-1]
-        self.gammaq = self.input.gammaq  # free atmosphere specific humidity lapse rate [kg kg-1 m-1]
-        self.gammaCO2 = self.input.gammaCO2  # free atmosphere CO2 lapse rate [ppm m-1]
-        fac = constants.mair / (constants.rho * constants.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
-        self.wCO2 = self.input.wCO2 * fac  # surface kinematic CO2 flux [ppm m s-1]
-        self.wCO2M = 0  # CO2 mass flux [ppm m s-1]
-        self.u = self.input.u  # initial mixed-layer u-wind speed [m s-1]
-        self.v = self.input.v  # initial mixed-layer u-wind speed [m s-1]
-        self.ustar = self.input.ustar  # surface friction velocity [m s-1]
-        self.z0m = self.input.z0m  # roughness length for momentum [m]
-        self.z0h = self.input.z0h  # roughness length for scalars [m]
-        self.tstart = self.input.tstart  # time of the day [-]
-        self.dFz = self.input.dFz  # cloud top radiative divergence [W m-2]
-        self.c_beta = self.input.c_beta  # Curvature plant water-stress factor (0..1) [-]
-
         # Constants
         self.ac = 0.0  # Cloud core fraction [-]
         self.M = 0.0  # Cloud core mass flux [m s-1]
         self.wqM = 0.0  # Cloud core moisture flux [kg kg-1 m s-1]
+        self.wCO2M = 0  # CO2 mass flux [ppm m s-1]
 
         # initialize time variables
         self.tsteps = int(np.floor(self.input.runtime / self.input.dt))
         self.dt = self.input.dt
         self.t = 0
-
-        # Some sanity checks for valid input
-        if self.c_beta is None:
-            self.c_beta = 0  # Zero curvature; linear response
-        assert self.c_beta >= 0 or self.c_beta <= 1  # PK: always True ?!
 
         # initialize output
         self.out = pd.DataFrame(columns=self.OUTPUT_VAR_NAMES, index=np.arange(self.tsteps), dtype=float)
@@ -167,7 +139,7 @@ class Model:
 
             # Special cases
             if var == "t":
-                value = self.t * self.dt / 3600.0 + self.tstart
+                value = self.t * self.dt / 3600.0 + self.input.tstart
             if var in ["wCO2", "wCO2e", "wCO2R", "wCO2A"]:
                 fac = (constants.rho * constants.mco2) / constants.mair
                 value = getattr(self, var, 0) * fac
@@ -181,8 +153,8 @@ class Model:
                 # Was initialized but never updated
                 value = 0
 
-            # Unused (and removed)
-            if var in ["du", "dv"]:
+            # Unused (TODO: remove)
+            if var in ["du", "dv", "wtheta", "wq", "u", "v", "ustar"]:
                 value = getattr(self.input, var)
             if var in ["thetasurf"]:
                 value = self.input.theta
@@ -198,17 +170,17 @@ class Model:
     def statistics(self):
         # Calculate virtual temperatures
         self.thetav = self.theta + 0.61 * self.theta * self.q
-        self.wthetav = self.wtheta + 0.61 * self.theta * self.wq
+        self.wthetav = self.input.wtheta + 0.61 * self.theta * self.input.wq
         self.dthetav = (self.theta + self.dtheta) * (1.0 + 0.61 * (self.q + self.dq)) - self.theta * (
             1.0 + 0.61 * self.q
         )
 
         # Mixed-layer top properties
-        self.P_h = self.Ps - constants.rho * constants.g * self.h
+        self.P_h = self.input.Ps - constants.rho * constants.g * self.h
         self.T_h = self.theta - constants.g / constants.cp * self.h
 
-        # self.P_h    = self.Ps / np.exp((constants.g * self.h)/(constants.Rd * self.theta))
-        # self.T_h    = self.theta / (self.Ps / self.P_h)**(constants.Rd/constants.cp)
+        # self.P_h    = self.input.Ps / np.exp((constants.g * self.h)/(constants.Rd * self.theta))
+        # self.T_h    = self.theta / (self.input.Ps / self.P_h)**(constants.Rd/constants.cp)
 
         self.RH_h = self.q / qsat(self.T_h, self.P_h)
 
@@ -223,7 +195,7 @@ class Model:
         it = 0
         while ((RHlcl <= 0.9999) or (RHlcl >= 1.0001)) and it < itmax:
             self.lcl += (1.0 - RHlcl) * 1000.0
-            p_lcl = self.Ps - constants.rho * constants.g * self.lcl
+            p_lcl = self.input.Ps - constants.rho * constants.g * self.lcl
             T_lcl = self.theta - constants.g / constants.cp * self.lcl
             RHlcl = self.q / qsat(T_lcl, p_lcl)
             it += 1
@@ -236,24 +208,28 @@ class Model:
         if not self.sw_sl:
             # PK todo: treat these two lines as a "very simple surface layer scheme"?
             # decompose ustar along the wind components
-            self.uw = -np.sign(self.u) * (self.ustar**4.0 / (self.v**2.0 / self.u**2.0 + 1.0)) ** (0.5)
-            self.vw = -np.sign(self.v) * (self.ustar**4.0 / (self.u**2.0 / self.v**2.0 + 1.0)) ** (0.5)
+            self.uw = -np.sign(self.input.u) * (
+                self.input.ustar**4.0 / (self.input.v**2.0 / self.input.u**2.0 + 1.0)
+            ) ** (0.5)
+            self.vw = -np.sign(self.input.v) * (
+                self.input.ustar**4.0 / (self.input.u**2.0 / self.input.v**2.0 + 1.0)
+            ) ** (0.5)
 
         # calculate large-scale vertical velocity (subsidence)
-        self.ws = -self.divU * self.h
+        self.ws = -self.input.divU * self.h
 
         # calculate compensation to fix the free troposphere in case of subsidence
         if self.sw_fixft:
-            w_th_ft = self.gammatheta * self.ws
-            w_q_ft = self.gammaq * self.ws
-            w_CO2_ft = self.gammaCO2 * self.ws
+            w_th_ft = self.input.gammatheta * self.ws
+            w_q_ft = self.input.gammaq * self.ws
+            w_CO2_ft = self.input.gammaCO2 * self.ws
         else:
             w_th_ft = 0.0
             w_q_ft = 0.0
             w_CO2_ft = 0.0
 
         # calculate mixed-layer growth due to cloud top radiative divergence
-        self.wf = self.dFz / (constants.rho * constants.cp * self.dtheta)
+        self.wf = self.input.dFz / (constants.rho * constants.cp * self.dtheta)
 
         # calculate convective velocity scale w*
         if self.wthetav > 0.0:
@@ -262,11 +238,13 @@ class Model:
             self.wstar = 1e-6
 
         # Virtual heat entrainment flux
-        self.wthetave = -self.beta * self.wthetav
+        self.wthetave = -self.input.beta * self.wthetav
 
         # compute mixed-layer tendencies
         if self.sw_shearwe:
-            self.we = (-self.wthetave + 5.0 * self.ustar**3.0 * self.thetav / (constants.g * self.h)) / self.dthetav
+            self.we = (
+                -self.wthetave + 5.0 * self.input.ustar**3.0 * self.thetav / (constants.g * self.h)
+            ) / self.dthetav
         else:
             self.we = -self.wthetave / self.dthetav
 
@@ -281,13 +259,14 @@ class Model:
 
         self.htend = self.we + self.ws + self.wf - self.M
 
-        self.thetatend = (self.wtheta - self.wthetae) / self.h + self.advtheta
-        self.qtend = (self.wq - self.wqe - self.wqM) / self.h + self.advq
-        self.CO2tend = (self.wCO2 - self.wCO2e - self.wCO2M) / self.h + self.advCO2
+        fac = constants.mair / (constants.rho * constants.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
+        self.thetatend = (self.input.wtheta - self.wthetae) / self.h + self.input.advtheta
+        self.qtend = (self.input.wq - self.wqe - self.wqM) / self.h + self.input.advq
+        self.CO2tend = (self.input.wCO2 * fac - self.wCO2e - self.wCO2M) / self.h + self.input.advCO2
 
-        self.dthetatend = self.gammatheta * (self.we + self.wf - self.M) - self.thetatend + w_th_ft
-        self.dqtend = self.gammaq * (self.we + self.wf - self.M) - self.qtend + w_q_ft
-        self.dCO2tend = self.gammaCO2 * (self.we + self.wf - self.M) - self.CO2tend + w_CO2_ft
+        self.dthetatend = self.input.gammatheta * (self.we + self.wf - self.M) - self.thetatend + w_th_ft
+        self.dqtend = self.input.gammaq * (self.we + self.wf - self.M) - self.qtend + w_q_ft
+        self.dCO2tend = self.input.gammaCO2 * (self.we + self.wf - self.M) - self.CO2tend + w_CO2_ft
 
         # tendency of the transition layer thickness
         if self.ac > 0 or self.lcl - self.h < 300:
