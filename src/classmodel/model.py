@@ -60,99 +60,34 @@ class Model:
         self.sw_ml = self.input.sw_ml  # mixed-layer model switch
         self.sw_shearwe = self.input.sw_shearwe  # shear growth ABL switch
         self.sw_fixft = self.input.sw_fixft  # Fix the free-troposphere switch
-        self.sw_wind = self.input.sw_wind  # prognostic wind switch
         self.sw_sl = self.input.sw_sl  # surface layer switch
-        self.Q = self.input.Q0
-        self.sw_ls = self.input.sw_ls  # land surface switch
-        self.ls_type = self.input.ls_type  # land surface paramaterization (js or ags)
-        self.sw_cu = self.input.sw_cu  # cumulus parameterization switch
 
-        # initialize mixed-layer
+        # State variables (they are initialized/updated prognostically)
         self.h = self.input.h  # initial ABL height [m]
-        self.Ps = self.input.Ps  # surface pressure [Pa]
-        self.divU = self.input.divU  # horizontal large-scale divergence of wind [s-1]
-        self.ws = None  # large-scale vertical velocity [m s-1]
-        self.wf = None  # mixed-layer growth due to radiative divergence [m s-1]
-        self.fc = self.input.fc  # coriolis parameter [s-1]
-        self.we = -1.0  # entrainment velocity [m s-1]
-
-        # Temperature
         self.theta = self.input.theta  # initial mixed-layer potential temperature [K]
         self.dtheta = self.input.dtheta  # initial temperature jump at h [K]
-        self.gammatheta = self.input.gammatheta  # free atmosphere potential temperature lapse rate [K m-1]
-        self.advtheta = self.input.advtheta  # advection of heat [K s-1]
-        self.beta = self.input.beta  # entrainment ratio for virtual heat [-]
-        self.wtheta = self.input.wtheta  # surface kinematic heat flux [K m s-1]
+        self.dz_h = self.input.dz_h  # Transition layer thickness [-]
+        self.q = self.input.q  # initial mixed-layer specific humidity [kg kg-1]
+        self.dq = self.input.dq  # initial specific humidity jump at h [kg kg-1]
+        self.CO2 = self.input.CO2  # initial mixed-layer CO2 [ppm]
+        self.dCO2 = self.input.dCO2  # initial CO2 jump at h [ppm]
+
+        # Computed properties (they are set diagnostically)?
+        self.ws = None  # large-scale vertical velocity [m s-1]
+        self.wf = None  # mixed-layer growth due to radiative divergence [m s-1]
+        self.we = -1.0  # entrainment velocity [m s-1]
         self.wthetae = None  # entrainment kinematic heat flux [K m s-1]
-
+        self.thetav = None  # initial mixed-layer potential temperature [K]
         self.wstar = 0.0  # convective velocity scale [m s-1]
-
-        # 2m diagnostic variables
-        self.T2m = None  # 2m temperature [K]
-        self.q2m = None  # 2m specific humidity [kg kg-1]
-        self.e2m = None  # 2m vapor pressure [Pa]
-        self.esat2m = None  # 2m saturated vapor pressure [Pa]
-        self.u2m = None  # 2m u-wind [m s-1]
-        self.v2m = None  # 2m v-wind [m s-1]
-
-        # Surface variables
-        self.thetasurf = self.input.theta  # surface potential temperature [K]
-        self.thetavsurf = None  # surface virtual potential temperature [K]
-        self.qsurf = None  # surface specific humidity [g kg-1]
-
-        # Mixed-layer top variables
         self.P_h = None  # Mixed-layer top pressure [pa]
         self.T_h = None  # Mixed-layer top absolute temperature [K]
-        self.q2_h = None  # Mixed-layer top specific humidity variance [kg2 kg-2]
-        self.CO22_h = None  # Mixed-layer top CO2 variance [ppm2]
         self.RH_h = None  # Mixed-layer top relavtive humidity [-]
-        self.dz_h = None  # Transition layer thickness [-]
-        self.lcl = None  # Lifting condensation level [m]
-
-        # Virtual temperatures and fluxes
-        self.thetav = None  # initial mixed-layer potential temperature [K]
+        self.lcl = None  # Lifting condensation level [m]  # PK: may want to cache it
         self.dthetav = None  # initial virtual temperature jump at h [K]
         self.wthetav = None  # surface kinematic virtual heat flux [K m s-1]
         self.wthetave = None  # entrainment kinematic virtual heat flux [K m s-1]
-
-        # Moisture
-        self.q = self.input.q  # initial mixed-layer specific humidity [kg kg-1]
-        self.dq = self.input.dq  # initial specific humidity jump at h [kg kg-1]
-        self.gammaq = self.input.gammaq  # free atmosphere specific humidity lapse rate [kg kg-1 m-1]
-        self.advq = self.input.advq  # advection of moisture [kg kg-1 s-1]
-        self.wq = self.input.wq  # surface kinematic moisture flux [kg kg-1 m s-1]
-        self.wqe = None  # entrainment moisture flux [kg kg-1 m s-1]
-        self.wqM = None  # moisture cumulus mass flux [kg kg-1 m s-1]
-
-        self.qsat = None  # mixed-layer saturated specific humidity [kg kg-1]
-        self.esat = None  # mixed-layer saturated vapor pressure [Pa]
-        self.e = None  # mixed-layer vapor pressure [Pa]
-        self.qsatsurf = None  # surface saturated specific humidity [g kg-1]
-        self.dqsatdT = None  # slope saturated specific humidity curve [g kg-1 K-1]
-
-        # CO2
-        fac = constants.mair / (constants.rho * constants.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
-        self.CO2 = self.input.CO2  # initial mixed-layer CO2 [ppm]
-        self.dCO2 = self.input.dCO2  # initial CO2 jump at h [ppm]
-        self.gammaCO2 = self.input.gammaCO2  # free atmosphere CO2 lapse rate [ppm m-1]
-        self.advCO2 = self.input.advCO2  # advection of CO2 [ppm s-1]
-        self.wCO2 = self.input.wCO2 * fac  # surface kinematic CO2 flux [ppm m s-1]
-        self.wCO2A = 0  # surface assimulation CO2 flux [ppm m s-1]
-        self.wCO2R = 0  # surface respiration CO2 flux [ppm m s-1]
         self.wCO2e = None  # entrainment CO2 flux [ppm m s-1]
-        self.wCO2M = 0  # CO2 mass flux [ppm m s-1]
-
-        # Wind
-        self.u = self.input.u  # initial mixed-layer u-wind speed [m s-1]
-        self.du = self.input.du  # initial u-wind jump at h [m s-1]
-        self.gammau = self.input.gammau  # free atmosphere u-wind speed lapse rate [s-1]
-        self.advu = self.input.advu  # advection of u-wind [m s-2]
-
-        self.v = self.input.v  # initial mixed-layer u-wind speed [m s-1]
-        self.dv = self.input.dv  # initial u-wind jump at h [m s-1]
-        self.gammav = self.input.gammav  # free atmosphere v-wind speed lapse rate [s-1]
-        self.advv = self.input.advv  # advection of v-wind [m s-2]
-
+        self.wqe = None  # entrainment moisture flux [kg kg-1 m s-1]
         # Tendencies
         self.htend = None  # tendency of CBL [m s-1]
         self.thetatend = None  # tendency of mixed-layer potential temperature [K s-1]
@@ -161,84 +96,35 @@ class Model:
         self.dqtend = None  # tendency of specific humidity jump at h [kg kg-1 s-1]
         self.CO2tend = None  # tendency of CO2 humidity [ppm]
         self.dCO2tend = None  # tendency of CO2 jump at h [ppm s-1]
-        self.utend = None  # tendency of u-wind [m s-1 s-1]
-        self.dutend = None  # tendency of u-wind jump at h [m s-1 s-1]
-        self.vtend = None  # tendency of v-wind [m s-1 s-1]
-        self.dvtend = None  # tendency of v-wind jump at h [m s-1 s-1]
         self.dztend = None  # tendency of transition layer thickness [m s-1]
-
-        # initialize surface layer
-        self.ustar = self.input.ustar  # surface friction velocity [m s-1]
         self.uw = None  # surface momentum flux in u-direction [m2 s-2]
         self.vw = None  # surface momentum flux in v-direction [m2 s-2]
+
+        # Model parameters (they remain constant)
+        self.Ps = self.input.Ps  # surface pressure [Pa]
+        self.divU = self.input.divU  # horizontal large-scale divergence of wind [s-1]
+        self.beta = self.input.beta  # entrainment ratio for virtual heat [-]
+        self.advtheta = self.input.advtheta  # advection of heat [K s-1]
+        self.advq = self.input.advq  # advection of moisture [kg kg-1 s-1]
+        self.advCO2 = self.input.advCO2  # advection of CO2 [ppm s-1]
+        self.wtheta = self.input.wtheta  # surface kinematic heat flux [K m s-1]
+        self.wq = self.input.wq  # surface kinematic moisture flux [kg kg-1 m s-1]
+        self.gammatheta = self.input.gammatheta  # free atmosphere potential temperature lapse rate [K m-1]
+        self.gammaq = self.input.gammaq  # free atmosphere specific humidity lapse rate [kg kg-1 m-1]
+        self.gammaCO2 = self.input.gammaCO2  # free atmosphere CO2 lapse rate [ppm m-1]
+        fac = constants.mair / (constants.rho * constants.mco2)  # Conversion factor mgC m-2 s-1 to ppm m s-1
+        self.wCO2 = self.input.wCO2 * fac  # surface kinematic CO2 flux [ppm m s-1]
+        self.wCO2M = 0  # CO2 mass flux [ppm m s-1]
+        self.u = self.input.u  # initial mixed-layer u-wind speed [m s-1]
+        self.v = self.input.v  # initial mixed-layer u-wind speed [m s-1]
+        self.ustar = self.input.ustar  # surface friction velocity [m s-1]
         self.z0m = self.input.z0m  # roughness length for momentum [m]
         self.z0h = self.input.z0h  # roughness length for scalars [m]
-        self.Cm = 1e12  # drag coefficient for momentum [-]
-        self.Cs = 1e12  # drag coefficient for scalars [-]
-        self.L = None  # Obukhov length [m]
-        self.Rib = None  # bulk Richardson number [-]
-        self.ra = None  # aerodynamic resistance [s m-1]
-
         self.tstart = self.input.tstart  # time of the day [-]
         self.dFz = self.input.dFz  # cloud top radiative divergence [W m-2]
-
-        # initialize land surface
-        self.wg = self.input.wg  # volumetric water content top soil layer [m3 m-3]
-        self.w2 = self.input.w2  # volumetric water content deeper soil layer [m3 m-3]
-        self.Tsoil = self.input.Tsoil  # temperature top soil layer [K]
-        self.T2 = self.input.T2  # temperature deeper soil layer [K]
-
-        self.a = self.input.a  # Clapp and Hornberger retention curve parameter a [-]
-        self.b = self.input.b  # Clapp and Hornberger retention curve parameter b [-]
-        self.p = self.input.p  # Clapp and Hornberger retention curve parameter p [-]
-        self.CGsat = self.input.CGsat  # saturated soil conductivity for heat
-
-        self.wsat = self.input.wsat  # saturated volumetric water content ECMWF config [-]
-        self.wfc = self.input.wfc  # volumetric water content field capacity [-]
-        self.wwilt = self.input.wwilt  # volumetric water content wilting point [-]
-
-        self.C1sat = self.input.C1sat
-        self.C2ref = self.input.C2ref
-
         self.c_beta = self.input.c_beta  # Curvature plant water-stress factor (0..1) [-]
 
-        self.LAI = self.input.LAI  # leaf area index [-]
-        self.gD = self.input.gD  # correction factor transpiration for VPD [-]
-        self.rsmin = self.input.rsmin  # minimum resistance transpiration [s m-1]
-        self.rssoilmin = self.input.rssoilmin  # minimum resistance soil evaporation [s m-1]
-        self.alpha = self.input.alpha  # surface albedo [-]  # TODO constant; only used in radiation
-
-        self.rs = 1.0e6  # resistance transpiration [s m-1]
-        self.rssoil = 1.0e6  # resistance soil [s m-1]
-
-        self.Ts = self.input.Ts  # surface temperature [K]
-
-        self.cveg = self.input.cveg  # vegetation fraction [-]
-        self.Wmax = self.input.Wmax  # thickness of water layer on wet vegetation [m]
-        self.Wl = self.input.Wl  # equivalent water layer depth for wet vegetation [m]
-        self.cliq = None  # wet fraction [-]
-
-        self.Lambda = self.input.Lambda  # thermal diffusivity skin layer [-]
-
-        self.Tsoiltend = None  # soil temperature tendency [K s-1]
-        self.wgtend = None  # soil moisture tendency [m3 m-3 s-1]
-        self.Wltend = None  # equivalent liquid water tendency [m s-1]
-
-        self.H = None  # sensible heat flux [W m-2]
-        self.LE = None  # evapotranspiration [W m-2]
-        self.LEliq = None  # open water evaporation [W m-2]
-        self.LEveg = None  # transpiration [W m-2]
-        self.LEsoil = None  # soil evaporation [W m-2]
-        self.LEpot = None  # potential evaporation [W m-2]
-        self.LEref = None  # reference evaporation using rs = rsmin / LAI [W m-2]
-        self.G = None  # ground heat flux [W m-2]
-
-        # initialize A-Gs surface scheme
-        self.c3c4 = self.input.c3c4  # plant type ('c3' or 'c4')
-
-        # initialize cumulus parameterization
-        self.sw_cu = self.input.sw_cu  # Cumulus parameterization switch
-        self.dz_h = self.input.dz_h  # Transition layer thickness [m]
+        # Constants
         self.ac = 0.0  # Cloud core fraction [-]
         self.M = 0.0  # Cloud core mass flux [m s-1]
         self.wqM = 0.0  # Cloud core moisture flux [kg kg-1 m s-1]
@@ -251,7 +137,7 @@ class Model:
         # Some sanity checks for valid input
         if self.c_beta is None:
             self.c_beta = 0  # Zero curvature; linear response
-        assert self.c_beta >= 0 or self.c_beta <= 1
+        assert self.c_beta >= 0 or self.c_beta <= 1  # PK: always True ?!
 
         # initialize output
         self.out = pd.DataFrame(columns=self.OUTPUT_VAR_NAMES, index=np.arange(self.tsteps), dtype=float)
@@ -277,14 +163,14 @@ class Model:
 
     def store(self):
         for var in self.OUTPUT_VAR_NAMES:
-            value = getattr(self, var, 0)  # TODO: raise if not exist?
+            value = getattr(self, var, None)  # TODO: raise if not exist?
 
             # Special cases
             if var == "t":
                 value = self.t * self.dt / 3600.0 + self.tstart
             if var in ["wCO2", "wCO2e", "wCO2R", "wCO2A"]:
                 fac = (constants.rho * constants.mco2) / constants.mair
-                value = getattr(self, var) * fac
+                value = getattr(self, var, 0) * fac
             if var == "dz":
                 value = getattr(self, "dz_h", None)
             if var == "zlcl":
@@ -294,6 +180,18 @@ class Model:
             if var in ["z0m", "z0h"]:
                 # Was initialized but never updated
                 value = 0
+
+            # Unused (and removed)
+            if var in ["du", "dv"]:
+                value = getattr(self.input, var)
+            if var in ["thetasurf"]:
+                value = self.input.theta
+            if var in ["Q"]:
+                value = self.input.Q0
+            if var in ["Cm", "Cs"]:
+                value = 1e12
+            if var in ["rs"]:
+                value = 1.0e6
 
             self.out.loc[self.t, var] = value
 
